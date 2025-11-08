@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Roguelike Arena</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #fff;
+            overflow: hidden;
+        }
+        #game-canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        #hud {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 10;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #333;
+            min-width: 300px;
+        }
+        .hud-item {
+            margin-bottom: 10px;
+        }
+        .hud-item label {
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #eee;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .bar-container {
+            width: 100%;
+            height: 20px;
+            background-color: #555;
+            border-radius: 5px;
+            overflow: hidden;
+            border: 1px solid #222;
+        }
+        #player-health-bar {
+            width: 100%;
+            height: 100%;
+            background-color: #4CAF50;
+            transition: width 0.3s ease;
+        }
+        #player-xp-bar {
+            width: 0%;
+            height: 100%;
+            background-color: #3b82f6;
+            transition: width 0.3s ease;
+        }
+        #ultimate-bar {
+            width: 0%;
+            height: 100%;
+            background-color: #a855f7;
+            transition: width 0.3s ease;
+        }
+        #skill-slots {
+            display: flex;
+            gap: 10px;
+            margin-top: 5px;
+        }
+        .skill-slot {
+            width: 70px; /* Widened for level text */
+            height: 60px;
+            background-color: #333;
+            border: 1px solid #555;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8em;
+            color: #888;
+            padding: 2px;
+            box-sizing: border-box;
+            text-align: center;
+            line-height: 1.2;
+            overflow: hidden;
+        }
+        .skill-slot .skill-key {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #fff;
+        }
+        .skill-slot .skill-name {
+            font-size: 0.85em;
+            color: #ddd;
+            white-space: nowrap;
+        }
+        .skill-slot .skill-level {
+            font-size: 0.75em;
+            color: #4CAF50;
+        }
+        .skill-slot.cooldown {
+            background-color: #111;
+        }
+        .skill-slot.cooldown .skill-name, .skill-slot.cooldown .skill-level {
+             color: #555;
+        }
+
+        #message-box, #level-up-message {
+            position: absolute;
+            top: 30%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-size: 2em;
+            font-weight: bold;
+            display: none;
+            z-index: 100;
+            text-align: center;
+        }
+        #message-box { background-color: rgba(200, 0, 0, 0.8); }
+        #level-up-message { 
+            background-color: rgba(59, 130, 246, 0.9); 
+            top: 40%; 
+            font-size: 2.5em; 
+            color: #fff; 
+            border: 2px solid #fff; 
+        }
+        #game-info {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.6);
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 1.2em;
+            z-index: 10;
+            text-align: center;
+        }
+        #skill-choice-ui, #skill-replace-ui {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            max-width: 900px;
+            background-color: rgba(10, 10, 10, 0.98);
+            border: 2px solid #555;
+            border-radius: 10px;
+            z-index: 200;
+            display: none;
+            color: #fff;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        #skill-choice-ui h2, #skill-replace-ui h2 {
+            text-align: center;
+            margin-top: 0;
+            color: #ffc;
+            font-size: 2em;
+        }
+        #skill-choice-options, #skill-replace-options {
+            display: flex;
+            justify-content: space-around;
+            gap: 15px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .skill-choice-option {
+            background-color: #222;
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 15px;
+            flex: 1 1 250px; /* Allow wrapping on smaller screens */
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .skill-choice-option:hover {
+            background-color: #333;
+            border-color: #3b82f6;
+            transform: translateY(-2px);
+        }
+        .skill-choice-option h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.4em;
+            color: #3b82f6;
+        }
+        .skill-choice-option .level-up-tag {
+            color: #4CAF50;
+            font-size: 0.8em;
+            display: block;
+            margin-top: -5px;
+            margin-bottom: 10px;
+        }
+        .skill-choice-option .mastery-tag {
+            color: #a855f7; /* Purple for mastery */
+            font-weight: bold;
+            font-size: 0.9em;
+            display: block;
+            margin-top: 5px;
+        }
+        .skill-choice-option p {
+            margin: 0;
+            font-size: 0.95em;
+            color: #ccc;
+            min-height: 50px;
+        }
+        #skill-replace-ui h3 { color: #f44336; }
+        .ui-btn {
+            padding: 10px 30px;
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            cursor: pointer;
+            font-size: 1.1em;
+            border-radius: 5px;
+            transition: background 0.2s;
+        }
+        .ui-btn:hover { background: #444; }
+    </style>
+</head>
+<body>
+    <canvas id="game-canvas"></canvas>
+
+    <div id="hud">
+        <div class="hud-item">
+            <label>Health</label>
+            <div class="bar-container"><div id="player-health-bar"></div></div>
+        </div>
+        <div class="hud-item">
+            <label>XP (Level <span id="player-level">1</span>)</label>
+            <div class="bar-container"><div id="player-xp-bar"></div></div>
+        </div>
+        <div class="hud-item">
+            <label>Ultimate</label>
+            <div class="bar-container"><div id="ultimate-bar"></div></div>
+        </div>
+        <div class="hud-item">
+            <label>Skills</label>
+            <div id="skill-slots">
+                <div id="skill-slot-0" class="skill-slot"><span class="skill-key">Q</span><span class="skill-name">-</span><span class="skill-level"></span></div>
+                <div id="skill-slot-1" class="skill-slot"><span class="skill-key">E</span><span class="skill-name">-</span><span class="skill-level"></span></div>
+                <div id="skill-slot-2" class="skill-slot"><span class="skill-key">R</span><span class="skill-name">-</span><span class="skill-level"></span></div>
+                <div id="skill-slot-3" class="skill-slot"><span class="skill-key">F</span><span class="skill-name">-</span><span class="skill-level"></span></div>
+            </div>
+        </div>
+        <div class="hud-item"><label>Kills: <span id="kill-count">0</span></label></div>
+        <div class="hud-item"><label>Weapon: <span id="weapon-name">Fist</span></label></div>
+    </div>
+
+    <div id="message-box" onclick="restartGame()">YOU DIED<br><span style="font-size: 0.5em;">Click to Restart</span></div>
+    <div id="level-up-message">LEVEL UP!</div>
+    <div id="game-info">Move: WASD | Attack: SPACE | Look: MOUSE | Weapon: 1, 2 | Skills: Q, E, R, F</div>
+
+    <div id="skill-choice-ui">
+        <h2>CHOOSE YOUR UPGRADE</h2>
+        <div id="skill-choice-options"></div>
+        <div style="text-align: center; margin-top: 20px;">
+             <button id="skip-skill-btn" class="ui-btn">Skip</button>
+        </div>
+    </div>
+
+    <div id="skill-replace-ui">
+        <h2>REPLACE WHICH SKILL?</h2>
+        <div id="skill-replace-options"></div>
+        <div style="text-align: center; margin-top: 20px;">
+             <button id="cancel-replace-btn" class="ui-btn">Cancel</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+
+    <script type="module">
+        let scene, camera, renderer, world;
+        let player = {
+            mesh: null, body: null, health: 100, maxHealth: 100, level: 1, xp: 0, xpToNextLevel: 100,
+            equippedSkills: [null, null, null, null],
+            skillLevels: {}, // Tracks level of each skill: { 'fireball': 1, 'dash': 5 }
+            skillCooldowns: [0, 0, 0, 0],
+            ultimateCharge: 0, maxUltimateCharge: 100, isDead: false,
+            attackCooldown: false, attackSpeedMultiplier: 1,
+            weaponMesh: null, currentWeapon: 'fist',
+            dashUntil: 0, isMoving: false,
+            isPhaseShifting: false, // Lv5 Dash Invincibility
+            hasBloodlust: false,    // Lv5 Berserk Lifesteal
+            attackState: { active: false, time: 0, duration: 0.25, startRot: 0, startPos: new THREE.Vector3() },
+            skillAnim: { active: false, type: null, time: 0, duration: 0.5 }
+        };
+        
+        const weapons = {
+            fist: { name: 'Fist', damage: 34, range: 2.0, cooldown: 250, createMesh: createFistMesh },
+            sword: { name: 'Sword', damage: 75, range: 3.0, cooldown: 600, createMesh: createSwordMesh }
+        };
+
+        const allSkills = {
+            dash: { id: 'dash', name: 'Dash', description: 'Quick burst of speed.', baseCooldown: 2000, mastery: 'Lv.5: Phase Shift (Invincible + Damage)' },
+            heal: { id: 'heal', name: 'Heal', description: 'Restore health.', baseCooldown: 10000, mastery: 'Lv.5: Holy Nova (AoE Damage)' },
+            stomp: { id: 'stomp', name: 'Stomp', description: 'Knockback nearby enemies.', baseCooldown: 5000, mastery: 'Lv.5: Seismic Wave (Stun Enemies)' },
+            fireball: { id: 'fireball', name: 'Fireball', description: 'Launch explosive projectile.', baseCooldown: 3000, mastery: 'Lv.5: Inferno (Fire Zone)' },
+            iceNova: { id: 'iceNova', name: 'Ice Nova', description: 'Freeze nearby enemies.', baseCooldown: 7000, mastery: 'Lv.5: Deep Freeze (x2 Damage Taken)' },
+            berserk: { id: 'berserk', name: 'Berserk', description: 'Temporarily boost attack speed.', baseCooldown: 12000, mastery: 'Lv.5: Bloodlust (20% Lifesteal)' }
+        };
+
+        let zombies = [];
+        let projectiles = [];
+        let persistentEffects = []; // For Fire circles, etc.
+        let keysPressed = {};
+        let lastTime = performance.now();
+        let mouse = { x: 0, y: 0 };
+        let killCount = 0;
+        let gameTime = 0; 
+        let gamePaused = false;
+        let pendingSkillReplacement = null;
+        let spawnIntervalId = null; 
+        let currentSpawnDelay = 5000; 
+
+        const groundMaterial = new CANNON.Material("groundMaterial");
+        const playerMaterial = new CANNON.Material("playerMaterial");
+        const zombieMaterial = new CANNON.Material("zombieMaterial");
+
+        // --- DOM Elements ---
+        const canvas = document.getElementById('game-canvas');
+        const playerHealthBar = document.getElementById('player-health-bar');
+        const playerXpBar = document.getElementById('player-xp-bar');
+        const playerLevelEl = document.getElementById('player-level');
+        const ultimateBar = document.getElementById('ultimate-bar');
+        const weaponNameEl = document.getElementById('weapon-name');
+        const messageBox = document.getElementById('message-box');
+        const levelUpMessage = document.getElementById('level-up-message');
+        const killCountEl = document.getElementById('kill-count');
+        const skillChoiceUI = document.getElementById('skill-choice-ui');
+        const skillReplaceUI = document.getElementById('skill-replace-ui');
+        const skillSlotEls = [0,1,2,3].map(i => document.getElementById(`skill-slot-${i}`));
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a0a0a); 
+            scene.fog = new THREE.Fog(0x1a0a0a, 20, 60); 
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(10, 30, 10);
+            dirLight.castShadow = true;
+            dirLight.shadow.camera.left = -30; dirLight.shadow.camera.right = 30;
+            dirLight.shadow.camera.top = 30; dirLight.shadow.camera.bottom = -30;
+            dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048;
+            scene.add(dirLight);
+
+            world = new CANNON.World();
+            world.gravity.set(0, -30, 0); 
+            world.broadphase = new CANNON.NaiveBroadphase();
+            world.addContactMaterial(new CANNON.ContactMaterial(groundMaterial, playerMaterial, { friction: 0.0, restitution: 0.0 }));
+            world.addContactMaterial(new CANNON.ContactMaterial(groundMaterial, zombieMaterial, { friction: 0.0, restitution: 0.0 }));
+            world.addContactMaterial(new CANNON.ContactMaterial(playerMaterial, zombieMaterial, { friction: 0.0, restitution: 0.2 }));
+
+            const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9, metalness: 0.1, side: THREE.DoubleSide }));
+            floorMesh.rotation.x = -Math.PI / 2; floorMesh.receiveShadow = true; scene.add(floorMesh);
+            const grid = new THREE.GridHelper(100, 50, 0x444444, 0x333333); grid.position.y = 0.01; scene.add(grid);
+            const floorBody = new CANNON.Body({ mass: 0, material: groundMaterial });
+            floorBody.addShape(new CANNON.Plane());
+            floorBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+            world.addBody(floorBody);
+
+            createWall(new CANNON.Vec3(0, 2.5, -50), 0, 100, 5); createWall(new CANNON.Vec3(0, 2.5, 50), 0, 100, 5);
+            createWall(new CANNON.Vec3(-50, 2.5, 0), Math.PI / 2, 100, 5); createWall(new CANNON.Vec3(50, 2.5, 0), Math.PI / 2, 100, 5);
+            
+            player.body = new CANNON.Body({ mass: 80, material: playerMaterial, fixedRotation: true, linearDamping: 0.9 });
+            player.body.addShape(new CANNON.Box(new CANNON.Vec3(0.4, 1, 0.4)));
+            player.body.position.set(0, 5, 0);
+            world.addBody(player.body);
+            player.mesh = createHumanoidMesh(0x0077ff); 
+            const playerGroup = new THREE.Group();
+            playerGroup.add(player.mesh);
+            camera.position.set(0, 8, 11); camera.lookAt(0, 3, 0);
+            playerGroup.add(camera);
+            scene.add(playerGroup);
+            
+            switchWeapon('fist'); 
+            window.addEventListener('keydown', (e) => { 
+                const k = e.key.toLowerCase();
+                if (k === ' ') attack();
+                else { keysPressed[k] = true; handleKeyPress(k); }
+            });
+            window.addEventListener('keyup', (e) => { keysPressed[e.key.toLowerCase()] = false; });
+            window.addEventListener('resize', onWindowResize, false);
+            canvas.addEventListener('click', () => { if (!gamePaused && !player.isDead) canvas.requestPointerLock(); });
+            document.addEventListener('pointerlockchange', lockChangeAlert, false);
+            document.addEventListener('mousemove', (e) => { if (document.pointerLockElement === canvas) { mouse.x = e.movementX || 0; mouse.y = e.movementY || 0; } }, false);
+            document.getElementById('cancel-replace-btn').onclick = cancelReplacement;
+            document.getElementById('skip-skill-btn').onclick = resumeGame;
+
+            spawnZombie(); setSpawnInterval(); animate();
+        }
+
+        function createHumanoidMesh(color) {
+            const g = new THREE.Group();
+            const m = new THREE.MeshStandardMaterial({ color: color, roughness: 0.7, metalness: 0.1 });
+            const d = new THREE.MeshStandardMaterial({ color: 0x222222 });
+            const leg = new THREE.BoxGeometry(0.3, 0.9, 0.3);
+            const lLeg = new THREE.Mesh(leg, m); lLeg.position.set(-0.2, 0.45, 0); lLeg.castShadow=true; lLeg.name='leftLeg'; lLeg.geometry.translate(0, -0.45, 0); lLeg.position.y+=0.45; g.add(lLeg);
+            const rLeg = new THREE.Mesh(leg, m); rLeg.position.set(0.2, 0.45, 0); rLeg.castShadow=true; rLeg.name='rightLeg'; rLeg.geometry.translate(0, -0.45, 0); rLeg.position.y+=0.45; g.add(rLeg);
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.4), m); torso.position.set(0, 1.25, 0); torso.castShadow=true; torso.name='torso'; g.add(torso);
+            const arm = new THREE.BoxGeometry(0.25, 0.7, 0.25);
+            const lArm = new THREE.Mesh(arm, m); lArm.position.set(-0.55, 1.25, 0); lArm.castShadow=true; lArm.name='leftArm'; lArm.geometry.translate(0, -0.35, 0); lArm.position.y+=0.35; g.add(lArm);
+            const rArm = new THREE.Mesh(arm, m); rArm.position.set(0.55, 1.25, 0); rArm.castShadow=true; rArm.name='rightArm'; rArm.geometry.translate(0, -0.35, 0); rArm.position.y+=0.35; g.add(rArm);
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), m); head.position.set(0, 1.85, 0); head.castShadow=true; head.name='head'; g.add(head);
+            const eye = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+            const lEye = new THREE.Mesh(eye, d); lEye.position.set(-0.15, 1.85, -0.25); g.add(lEye);
+            const rEye = new THREE.Mesh(eye, d); rEye.position.set(0.15, 1.85, -0.25); g.add(rEye);
+            g.position.y = -1.0; return g;
+        }
+        function createSwordMesh() {
+            const g = new THREE.Group();
+            const b = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.3, 0.05), new THREE.MeshStandardMaterial({ color: 0xeeeeee, metalness: 0.8, roughness: 0.2 })); b.position.y = 0.8; b.castShadow=true; g.add(b);
+            const gd = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.15), new THREE.MeshStandardMaterial({ color: 0xc0a000, metalness: 0.6, roughness: 0.3 })); gd.position.y = 0.15; gd.castShadow=true; g.add(gd);
+            const h = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.4, 0.08), new THREE.MeshStandardMaterial({ color: 0x553311, roughness: 0.8 })); h.position.y = -0.05; h.castShadow=true; g.add(h);
+            return g;
+        }
+        function createFistMesh() {
+            const g = new THREE.Group(); const mat = new THREE.MeshStandardMaterial({ color: 0x882222, roughness: 0.5 }); const geo = new THREE.SphereGeometry(0.18, 8, 8);
+            const l = new THREE.Mesh(geo, mat); l.position.set(-0.35, 0, 0); g.add(l);
+            const r = new THREE.Mesh(geo, mat); r.position.set(0.35, 0, 0); g.add(r);
+            return g;
+        }
+        function createWall(pos, rotY, w, h) {
+            const b = new CANNON.Body({ mass: 0, material: groundMaterial }); b.addShape(new CANNON.Box(new CANNON.Vec3(w/2, h/2, 0.5))); b.position.copy(pos); b.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), rotY); world.addBody(b);
+            const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 1), new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9 })); m.position.copy(pos); m.quaternion.copy(b.quaternion); m.castShadow=true; m.receiveShadow=true; scene.add(m);
+        }
+
+        function animate() {
+            if (player.isDead && !gamePaused) gamePaused = true;
+            if (gamePaused) { requestAnimationFrame(animate); return; }
+            requestAnimationFrame(animate);
+            const time = performance.now(), delta = (time - lastTime) / 1000.0; gameTime = time;
+            world.step(1/60, delta);
+            handlePlayerMovement(delta);
+            updatePlayerAnimations(gameTime/1000, delta);
+            if (player.mesh) player.mesh.parent.position.copy(player.body.position);
+
+            for (let i = zombies.length - 1; i >= 0; i--) {
+                const z = zombies[i]; if (!z || !z.group || !z.body) continue;
+                z.group.position.copy(z.body.position); z.group.quaternion.copy(z.body.quaternion);
+                if (z.isFrozen && gameTime > z.freezeUntil) { z.isFrozen = false; z.isBrittle = false; setEntityColor(z.mesh, 0x44cc44); }
+                if (!z.isFrozen) {
+                    const dir = new CANNON.Vec3(); player.body.position.vsub(z.body.position, dir); dir.y=0; const dist = dir.length(); dir.normalize();
+                    z.body.velocity.set(dir.x * z.baseSpeed, z.body.velocity.y, dir.z * z.baseSpeed);
+                    z.body.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), Math.atan2(dir.x, dir.z));
+                    const s = 8, a = Math.sin(gameTime/1000*s)*0.3;
+                    if(z.mesh.getObjectByName('leftLeg')) z.mesh.getObjectByName('leftLeg').rotation.x=a;
+                    if(z.mesh.getObjectByName('rightLeg')) z.mesh.getObjectByName('rightLeg').rotation.x=-a;
+                    if(z.mesh.getObjectByName('leftArm')) z.mesh.getObjectByName('leftArm').rotation.x=-a;
+                    if(z.mesh.getObjectByName('rightArm')) z.mesh.getObjectByName('rightArm').rotation.x=a;
+                    if (dist < 1.5) takeDamage(0.2);
+                } else { z.body.velocity.set(0, z.body.velocity.y, 0); }
+            }
+            updateProjectiles(delta);
+            updatePersistentEffects(delta);
+            updateSkillCooldowns();
+            renderer.render(scene, camera);
+            lastTime = time;
+        }
+
+        function handleKeyPress(key) {
+            if (key==='1') switchWeapon('fist'); if (key==='2') switchWeapon('sword');
+            if (key==='q') useSkill(0); if (key==='e') useSkill(1); if (key==='r') useSkill(2); if (key==='f') useSkill(3);
+        }
+        function handlePlayerMovement(delta) {
+            const pg = player.mesh.parent; player.isMoving = false;
+            const md = new THREE.Vector3();
+            if (keysPressed['w']) { md.z-=1; player.isMoving=true; } if (keysPressed['s']) { md.z+=1; player.isMoving=true; }
+            if (keysPressed['a']) { md.x-=1; player.isMoving=true; } if (keysPressed['d']) { md.x+=1; player.isMoving=true; }
+            if (mouse.x !== 0) { pg.quaternion.multiplyQuaternions(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), mouse.x*-0.002), pg.quaternion); mouse.x=0; }
+            if (gameTime < player.dashUntil) {
+                // Lv5 Dash: Phase Shift Damage
+                if (player.isPhaseShifting) {
+                     for (let i=0; i<zombies.length; i++) {
+                         if (player.body.position.distanceTo(zombies[i].body.position) < 1.5) damageZombie(zombies[i], 100); // Contact damage
+                     }
+                }
+                return;
+            }
+            if (player.isMoving) { md.normalize(); md.applyQuaternion(pg.quaternion); player.body.velocity.x = md.x*18; player.body.velocity.z = md.z*18; }
+            else { player.body.velocity.x = 0; player.body.velocity.z = 0; }
+        }
+        function updatePlayerAnimations(t, dt) {
+            const torso=player.mesh.getObjectByName('torso'), head=player.mesh.getObjectByName('head'), lArm=player.mesh.getObjectByName('leftArm'), rArm=player.mesh.getObjectByName('rightArm'), lLeg=player.mesh.getObjectByName('leftLeg'), rLeg=player.mesh.getObjectByName('rightLeg');
+            torso.rotation.x=0; torso.position.y=1.25; head.rotation.x=0; lArm.rotation.x=0; lArm.rotation.z=0; rArm.rotation.x=0; rArm.rotation.z=0; lLeg.rotation.x=0; rLeg.rotation.x=0;
+            if (player.skillAnim.active) {
+                player.skillAnim.time += dt; const p = Math.min(player.skillAnim.time/player.skillAnim.duration, 1.0);
+                switch(player.skillAnim.type) {
+                    case 'dash': torso.rotation.x=0.5; head.rotation.x=-0.3; lArm.rotation.x=1.0; rArm.rotation.x=1.0; lLeg.rotation.x=-0.8; rLeg.rotation.x=0.5; break;
+                    case 'heal': lArm.rotation.z=Math.PI-0.5; rArm.rotation.z=-(Math.PI-0.5); head.rotation.x=-0.5; break;
+                    case 'stomp': case 'iceNova': if(p<0.5){ player.mesh.position.y=THREE.MathUtils.lerp(0,1.5,p*2); lLeg.rotation.x=-0.5; rLeg.rotation.x=-0.5; lArm.rotation.x=-2.5; rArm.rotation.x=-2.5; } else { player.mesh.position.y=THREE.MathUtils.lerp(1.5,0,(p-0.5)*2); torso.rotation.x=0.5; lArm.rotation.x=-0.5; rArm.rotation.x=-0.5; } break;
+                    case 'fireball': rArm.rotation.x=-Math.PI/2; torso.rotation.y=-0.5; break;
+                }
+                if (p>=1.0 && player.skillAnim.type!=='dash') { player.skillAnim.active=false; player.mesh.position.y=-1.0; torso.rotation.set(0,0,0); }
+                if (player.skillAnim.type==='dash' && gameTime > player.dashUntil) { player.skillAnim.active=false; torso.rotation.x=0; head.rotation.x=0; }
+                return;
+            }
+            if (player.isMoving) { const a = Math.sin(t*15)*0.5; lLeg.rotation.x=a; rLeg.rotation.x=-a; if(!(player.attackState.active && player.currentWeapon==='sword')){ lArm.rotation.x=-a; rArm.rotation.x=a; } }
+            if (player.attackState.active && player.weaponMesh) {
+                player.attackState.time += dt; const p = Math.min(player.attackState.time/player.attackState.duration, 1.0);
+                if (player.currentWeapon === 'sword') {
+                    const bx=-Math.PI/2-0.2, by=-0.3, bz=0.4;
+                    if(p<0.2) { const pp=p/0.2; player.weaponMesh.rotation.set(THREE.MathUtils.lerp(bx, -Math.PI/2+0.5, pp), THREE.MathUtils.lerp(by, -1.2, pp), THREE.MathUtils.lerp(bz, 0.8, pp)); }
+                    else if(p<0.6) { const pp=(p-0.2)/0.4, ep=pp*(2-pp); player.weaponMesh.rotation.set(THREE.MathUtils.lerp(-Math.PI/2+0.5, -Math.PI/2-0.5, ep), THREE.MathUtils.lerp(-1.2, 1.5, ep), THREE.MathUtils.lerp(0.8, -0.5, ep)); }
+                    else { const pp=(p-0.6)/0.4; player.weaponMesh.rotation.set(THREE.MathUtils.lerp(-Math.PI/2-0.5, bx, pp), THREE.MathUtils.lerp(1.5, by, pp), THREE.MathUtils.lerp(-0.5, bz, pp)); }
+                } else if (player.currentWeapon === 'fist') {
+                    player.weaponMesh.position.z = player.attackState.startPos.z + (p<0.3 ? THREE.MathUtils.lerp(0, -0.8, p/0.3) : THREE.MathUtils.lerp(-0.8, 0, (p-0.3)/0.7));
+                }
+                if (p>=1.0) { player.attackState.active=false; if(player.currentWeapon==='sword') player.weaponMesh.rotation.set(-Math.PI/2-0.2, -0.3, 0.4); if(player.currentWeapon==='fist') player.weaponMesh.position.copy(player.attackState.startPos); }
+            }
+        }
+        function switchWeapon(name) {
+            if (!weapons[name] || player.currentWeapon===name && player.weaponMesh) return;
+            player.currentWeapon = name; const wd = weapons[name], pg = player.mesh.parent;
+            if (player.weaponMesh) pg.remove(player.weaponMesh);
+            player.weaponMesh = wd.createMesh(); weaponNameEl.innerText = wd.name;
+            if (name === 'sword') { player.weaponMesh.position.set(0.7, 0.1, -0.4); player.weaponMesh.rotation.set(-Math.PI/2-0.2, -0.3, 0.4); }
+            else { player.weaponMesh.position.set(0, 0.5, -0.75); player.weaponMesh.rotation.set(0, 0, 0); }
+            pg.add(player.weaponMesh);
+        }
+        function lockChangeAlert() {
+            const menu = skillChoiceUI.style.display==='block' || skillReplaceUI.style.display==='block' || messageBox.style.display==='block';
+            if (document.pointerLockElement===canvas) { if(!menu) { document.getElementById('game-info').style.display='none'; gamePaused=false; } }
+            else { if(!menu && !player.isDead) { document.getElementById('game-info').style.display='block'; gamePaused=true; } }
+        }
+
+        function attack() {
+            if (player.attackCooldown || player.attackState.active) return;
+            const wd = weapons[player.currentWeapon]; player.attackCooldown=true;
+            player.attackState.active=true; player.attackState.time=0; player.attackState.duration=(wd.cooldown/1000)/player.attackSpeedMultiplier;
+            player.attackState.startRot=player.weaponMesh.rotation.y; player.attackState.startPos.copy(player.weaponMesh.position);
+            const pg=player.mesh.parent, pos=pg.position.clone(), fwd=new THREE.Vector3(0,0,-1).applyQuaternion(pg.quaternion); pos.addScaledVector(fwd, wd.range/2);
+            for (let i=zombies.length-1; i>=0; i--) {
+                const z = zombies[i];
+                if (!z || !z.body) continue;
+                if (pos.distanceTo(z.body.position) < wd.range) {
+                    damageZombie(z, wd.damage);
+                    if (z.health > 0) {
+                        const kb=new CANNON.Vec3(); z.body.position.vsub(player.body.position, kb); kb.y=0.2; kb.normalize();
+                        z.body.applyImpulse(kb.scale(wd.name==='Sword'?40:25), z.body.position);
+                    }
+                }
+            }
+            setTimeout(() => { player.attackCooldown=false; }, wd.cooldown/player.attackSpeedMultiplier);
+        }
+        function damageZombie(z, amt) {
+            if (!z || z.health <= 0) return;
+            if (z.isBrittle) amt *= 2; // Ice Nova Lv5 Master Skill
+            z.health -= amt;
+            if (player.hasBloodlust) { // Berserk Lv5 Master Skill
+                 player.health = Math.min(player.maxHealth, player.health + (amt * 0.2)); 
+                 updateHUD();
+            }
+            if (z.mesh && !z.isFrozen) { setEntityColor(z.mesh, 0xffffff); setTimeout(() => { if(z.mesh && !z.isFrozen && z.health>0) setEntityColor(z.mesh, 0x44cc44); }, 100); }
+            if (z.health <= 0) killZombie(z, zombies.indexOf(z));
+        }
+        function takeDamage(amt) {
+            if (player.isDead || player.isPhaseShifting) return; // Dash Lv5 Invincibility
+            player.health -= amt; if (player.health<0) player.health=0;
+            setEntityColor(player.mesh, 0xff0000); setTimeout(() => { if(!player.isDead) setEntityColor(player.mesh, 0x0077ff); }, 100);
+            updateHUD(); if (player.health<=0) die();
+        }
+        function setEntityColor(g, c) { if (!g || !g.children) return; g.children.forEach(p => { if(p.geometry && p.geometry.parameters.width>0.15) p.material.color.set(c); }); }
+        function die() { player.isDead=true; gamePaused=true; messageBox.style.display='block'; document.exitPointerLock(); }
+        function killZombie(z, idx) { createParticles(z.group.position, 0x00ff00, 20); scene.remove(z.group); world.removeBody(z.body); zombies.splice(idx, 1); killCount++; killCountEl.innerText=killCount; gainXP(z.xpValue); }
+        
+        function createProjectile(skill, level) {
+            const pg=player.mesh.parent, geo=new THREE.SphereGeometry(0.3,8,8), mat=new THREE.MeshBasicMaterial({color:0xff4500}), mesh=new THREE.Mesh(geo,mat);
+            const dir=new THREE.Vector3(0,0,-1).applyQuaternion(pg.quaternion), start=pg.position.clone(); start.addScaledVector(dir, 1.5); start.y+=0.5; mesh.position.copy(start); scene.add(mesh);
+            projectiles.push({ mesh:mesh, dir:dir, speed:15+(level*1), damage:100+(level*30), life:100, isInferno: level>=5 });
+        }
+        function updateProjectiles(dt) {
+            for (let i=projectiles.length-1; i>=0; i--) {
+                const p=projectiles[i], mv=p.dir.clone().multiplyScalar(p.speed*dt); p.mesh.position.add(mv); p.life--;
+                let hit=false;
+                for (let j=zombies.length-1; j>=0; j--) {
+                    if (p.mesh.position.distanceTo(zombies[j].body.position) < 2.0) { damageZombie(zombies[j], p.damage); hit=true; }
+                }
+                if (hit || p.life<=0) {
+                    createParticles(p.mesh.position, 0xff4500, 30);
+                    if (hit && p.isInferno) createFireCircle(p.mesh.position); // Lv5 Fireball Inferno
+                    scene.remove(p.mesh); projectiles.splice(i, 1);
+                }
+            }
+        }
+        function createFireCircle(pos) {
+            const g=new THREE.RingGeometry(0.1, 5, 32), m=new THREE.MeshBasicMaterial({ color: 0xff5500, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
+            const mesh=new THREE.Mesh(g, m); mesh.rotation.x = -Math.PI/2; mesh.position.copy(pos); mesh.position.y=0.1; scene.add(mesh);
+            persistentEffects.push({ type:'fireCircle', mesh:mesh, position:pos, radius:5, duration:5000, damagePerTick:50, tickTimer:0 });
+        }
+        function updatePersistentEffects(dt) {
+            for(let i=persistentEffects.length-1; i>=0; i--) {
+                const e=persistentEffects[i]; e.duration -= dt*1000;
+                if(e.type==='fireCircle') {
+                    e.tickTimer+=dt; if(e.tickTimer>0.5) { e.tickTimer=0; for(let j=0; j<zombies.length; j++) if(zombies[j].body.position.distanceTo(e.position)<e.radius) damageZombie(zombies[j], e.damagePerTick); }
+                }
+                if(e.duration<=0) { scene.remove(e.mesh); persistentEffects.splice(i,1); }
+            }
+        }
+
+        function spawnZombie() {
+            if (player.isDead || gamePaused || zombies.length>=40) return;
+            const b = new CANNON.Body({ mass: 60, material: zombieMaterial, fixedRotation: true, linearDamping: 0.5 });
+            b.addShape(new CANNON.Box(new CANNON.Vec3(0.4, 1, 0.4)));
+            const sx = Math.random()<0.5 ? Math.random()*90-45 : (Math.random()<0.5?-45:45), sz = Math.random()<0.5 ? Math.random()*90-45 : (Math.random()<0.5?-45:45);
+            b.position.set(sx, 5, sz); world.addBody(b);
+            const zm = createHumanoidMesh(0x44cc44), zg = new THREE.Group(); zg.add(zm); scene.add(zg);
+            zombies.push({ group:zg, mesh:zm, body:b, health:100, xpValue:50, baseSpeed:2+(Math.random()*2), isFrozen:false, freezeUntil:0, isBrittle: false });
+        }
+        function setSpawnInterval() { if (spawnIntervalId) clearInterval(spawnIntervalId); if (currentSpawnDelay<100) currentSpawnDelay=100; spawnIntervalId=setInterval(spawnZombie, currentSpawnDelay); }
+        function gainXP(amt) { player.xp+=amt; player.ultimateCharge+=amt/2; if(player.ultimateCharge>player.maxUltimateCharge) player.ultimateCharge=player.maxUltimateCharge; if(player.xp>=player.xpToNextLevel) levelUp(); updateHUD(); }
+        function levelUp() {
+            player.level++; player.xp-=player.xpToNextLevel; player.xpToNextLevel=Math.floor(player.xpToNextLevel*1.5);
+            currentSpawnDelay/=2; setSpawnInterval(); player.health=player.maxHealth;
+            levelUpMessage.style.display='block'; setTimeout(() => { levelUpMessage.style.display='none'; }, 2000);
+            for(let i=zombies.length-1; i>=0; i--) { scene.remove(zombies[i].group); world.removeBody(zombies[i].body); } zombies=[];
+            showSkillChoiceScreen(); updateHUD();
+        }
+        function showSkillChoiceScreen() {
+            gamePaused=true; document.exitPointerLock();
+            const ids=Object.keys(allSkills), choices=[], available=[...ids];
+            for (let i=available.length-1; i>0; i--) { const j=Math.floor(Math.random()*(i+1)); [available[i], available[j]] = [available[j], available[i]]; }
+            // Prioritize upgrades if full, otherwise mix
+            while(choices.length<3 && available.length>0) choices.push(available.pop());
+            const cEl=document.getElementById('skill-choice-options'); cEl.innerHTML='';
+            if(choices.length===0) { cEl.innerHTML='<p>Maxed Out!</p>'; setTimeout(resumeGame,1000); return; }
+            choices.forEach(id => {
+                const s=allSkills[id], curLv=player.skillLevels[id]||0, nextLv=curLv+1, isMaster=nextLv%5===0;
+                const d=document.createElement('div'); d.className='skill-choice-option';
+                d.innerHTML=`<h3>${s.name} ${curLv>0?`(Lv.${nextLv})`:''}</h3>${curLv>0?'<span class="level-up-tag">UPGRADE</span>':''}${isMaster?`<span class="mastery-tag">MASTER UPGRADE!</span>`:''}<p>${s.description}</p>${isMaster?`<p class="mastery-tag">${s.mastery}</p>`:''}`;
+                d.onclick=()=>chooseSkill(id); cEl.appendChild(d);
+            });
+            skillChoiceUI.style.display='block';
+        }
+        function chooseSkill(id) {
+            if(player.equippedSkills.includes(id)) { player.skillLevels[id]++; resumeGame(); updateSkillHUD(); }
+            else {
+                const empty=player.equippedSkills.findIndex(s=>s===null);
+                if(empty!==-1) { equipSkill(id, empty); resumeGame(); }
+                else { pendingSkillReplacement=id; showSkillReplaceScreen(); }
+            }
+        }
+        function showSkillReplaceScreen() {
+            skillChoiceUI.style.display='none'; const cEl=document.getElementById('skill-replace-options'); cEl.innerHTML='';
+            player.equippedSkills.forEach((id, i) => {
+                const s=allSkills[id], lv=player.skillLevels[id];
+                const d=document.createElement('div'); d.className='skill-choice-option';
+                d.innerHTML=`<h3>[${['Q','E','R','F'][i]}] ${s.name} Lv.${lv}</h3><p>${s.description}</p>`;
+                d.onclick=()=>confirmReplaceSkill(i); cEl.appendChild(d);
+            });
+            skillReplaceUI.style.display='block';
+        }
+        function confirmReplaceSkill(i) { if(pendingSkillReplacement) { equipSkill(pendingSkillReplacement, i); pendingSkillReplacement=null; skillReplaceUI.style.display='none'; resumeGame(); } }
+        function cancelReplacement() { pendingSkillReplacement=null; skillReplaceUI.style.display='none'; skillChoiceUI.style.display='block'; }
+        function resumeGame() { skillChoiceUI.style.display='none'; skillReplaceUI.style.display='none'; gamePaused=false; if(!player.isDead) canvas.requestPointerLock(); }
+        function equipSkill(id, i) { player.equippedSkills[i]=id; if(!player.skillLevels[id]) player.skillLevels[id]=1; player.skillCooldowns[i]=0; skillSlotEls[i].classList.remove('cooldown'); updateSkillHUD(); }
+        function updateSkillHUD() {
+            for(let i=0; i<4; i++) {
+                const id=player.equippedSkills[i], el=skillSlotEls[i], nameEl=el.querySelector('.skill-name'), lvEl=el.querySelector('.skill-level');
+                if(id) { nameEl.innerText=allSkills[id].name; lvEl.innerText=`Lv.${player.skillLevels[id]}`; }
+                else { nameEl.innerText='-'; lvEl.innerText=''; }
+            }
+        }
+        function useSkill(i) {
+            const id=player.equippedSkills[i]; if(!id || player.skillCooldowns[i]>gameTime) return;
+            const s=allSkills[id], lv=player.skillLevels[id]||1, isMaster=lv>=5; let ok=false;
+            switch(s.id) {
+                case 'dash':
+                    const dd=new THREE.Vector3(0,0,-1).applyQuaternion(player.mesh.parent.quaternion);
+                    player.body.velocity.x=dd.x*120; player.body.velocity.z=dd.z*120; player.body.velocity.y=Math.max(player.body.velocity.y,5);
+                    player.dashUntil=gameTime+200; player.skillAnim={active:true, type:'dash', time:0, duration:0.2};
+                    if (isMaster) player.isPhaseShifting = true; // Lv5 Master
+                    setTimeout(() => { player.isPhaseShifting = false; }, 200);
+                    ok=true; break;
+                case 'heal':
+                    const amt = 25 + (lv*15); // Scaling
+                    if(player.health<player.maxHealth) {
+                        player.health=Math.min(player.maxHealth, player.health+amt); updateHUD(); createParticles(player.body.position, 0x4CAF50, 30);
+                        player.skillAnim={active:true, type:'heal', time:0, duration:0.5};
+                        if (isMaster) { // Lv5 Master Holy Nova
+                             createParticles(player.body.position, 0xffff00, 50); // Holy particles
+                             for(let j=0; j<zombies.length; j++) { if(player.body.position.distanceTo(zombies[j].body.position) < 15) damageZombie(zombies[j], amt*2); }
+                        }
+                        ok=true;
+                    } break;
+                case 'stomp':
+                    player.skillAnim={active:true, type:'stomp', time:0, duration:0.4};
+                    setTimeout(() => {
+                        createParticles(player.body.position, 0xffa500, 50);
+                        const dmg = 50 + (lv*25), range = 8 + (lv*1); // Scaling
+                        const masterRange = isMaster ? range * 2 : range; // Lv5 Master Range
+                        for(let j=zombies.length-1; j>=0; j--) {
+                            if(player.body.position.distanceTo(zombies[j].body.position) < masterRange) {
+                                damageZombie(zombies[j], dmg);
+                                const kb=new CANNON.Vec3(); zombies[j].body.position.vsub(player.body.position, kb); kb.y=1; kb.normalize();
+                                zombies[j].body.applyImpulse(kb.scale(100), zombies[j].body.position);
+                                if (isMaster) { zombies[j].isFrozen=true; zombies[j].freezeUntil=gameTime+3000; setEntityColor(zombies[j].mesh, 0xaaaa00); } // Lv5 Master Stun
+                            }
+                        }
+                    }, 200); ok=true; break;
+                case 'fireball':
+                    player.skillAnim={active:true, type:'fireball', time:0, duration:0.3};
+                    createProjectile(s, lv); ok=true; break;
+                case 'iceNova':
+                    player.skillAnim={active:true, type:'iceNova', time:0, duration:0.4};
+                    setTimeout(() => {
+                        createParticles(player.body.position, 0x00aaff, 50);
+                        const dur = 3000 + (lv*500); // Scaling
+                        for(let j=zombies.length-1; j>=0; j--) {
+                            if(player.body.position.distanceTo(zombies[j].body.position) < 10) {
+                                zombies[j].isFrozen=true; zombies[j].freezeUntil=gameTime+dur; setEntityColor(zombies[j].mesh, 0x00aaff);
+                                if (isMaster) zombies[j].isBrittle = true; // Lv5 Master Brittle
+                            }
+                        }
+                    }, 200); ok=true; break;
+                case 'berserk':
+                    player.attackSpeedMultiplier=2.0; setEntityColor(player.mesh, 0xff0000); createParticles(player.body.position, 0xff0000, 30);
+                    if (isMaster) player.hasBloodlust = true; // Lv5 Master Bloodlust
+                    setTimeout(() => {
+                        player.attackSpeedMultiplier=1.0; player.hasBloodlust=false;
+                        if(!player.isDead) setEntityColor(player.mesh, 0x0077ff);
+                    }, 5000 + (lv*1000)); // Scaling duration
+                    ok=true; break;
+            }
+            if(ok) { player.skillCooldowns[i]=gameTime + (s.baseCooldown - (s.id==='dash'?lv*200:0)); skillSlotEls[i].classList.add('cooldown'); }
+        }
+        function updateSkillCooldowns() {
+            for(let i=0; i<4; i++) { if(player.skillCooldowns[i]>0 && gameTime>player.skillCooldowns[i]) { player.skillCooldowns[i]=0; skillSlotEls[i].classList.remove('cooldown'); } }
+        }
+        function updateHUD() {
+            const hp=(player.health/player.maxHealth)*100; playerHealthBar.style.width=hp+'%'; playerHealthBar.style.backgroundColor=hp<30?'#f44336':hp<60?'#ffeb3b':'#4CAF50';
+            playerXpBar.style.width=((player.xp/player.xpToNextLevel)*100)+'%'; playerLevelEl.innerText=player.level;
+            ultimateBar.style.width=((player.ultimateCharge/player.maxUltimateCharge)*100)+'%';
+        }
+        function createParticles(pos, col, count) {
+            const geo=new THREE.BufferGeometry(), verts=[]; for(let i=0; i<count; i++) verts.push(pos.x, pos.y+1, pos.z);
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(verts,3));
+            const mat=new THREE.PointsMaterial({color:col, size:0.3, transparent:true, opacity:1.0}), pts=new THREE.Points(geo,mat); scene.add(pts);
+            const vels=[]; for(let i=0; i<count; i++) vels.push({x:(Math.random()-0.5)*8, y:(Math.random()-0.5)*8+4, z:(Math.random()-0.5)*8});
+            let life=1.0; (function anim(){ life-=0.02; if(life<=0){ scene.remove(pts); return; } mat.opacity=life; const p=pts.geometry.attributes.position.array; for(let i=0; i<count; i++){ p[i*3]+=vels[i].x*0.016; p[i*3+1]+=vels[i].y*0.016; p[i*3+2]+=vels[i].z*0.016; vels[i].y-=0.2; } pts.geometry.attributes.position.needsUpdate=true; requestAnimationFrame(anim); })();
+        }
+        function onWindowResize() { camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+        window.restartGame = function() {
+            player.health=player.maxHealth; player.isDead=false; player.level=1; player.xp=0; player.xpToNextLevel=100; player.ultimateCharge=0;
+            player.equippedSkills=[null,null,null,null]; player.skillLevels={}; player.skillCooldowns=[0,0,0,0]; player.attackSpeedMultiplier=1.0;
+            player.body.position.set(0,5,0); player.body.velocity.set(0,0,0); player.dashUntil=0; currentSpawnDelay=5000;
+            for(let i=zombies.length-1; i>=0; i--) { scene.remove(zombies[i].group); world.removeBody(zombies[i].body); } zombies=[];
+            for(let i=projectiles.length-1; i>=0; i--) scene.remove(projectiles[i].mesh); projectiles=[];
+            for(let i=persistentEffects.length-1; i>=0; i--) scene.remove(persistentEffects[i].mesh); persistentEffects=[];
+            messageBox.style.display='none'; levelUpMessage.style.display='none'; skillChoiceUI.style.display='none'; skillReplaceUI.style.display='none';
+            killCount=0; killCountEl.innerText='0'; player.currentWeapon=null; switchWeapon('fist'); updateHUD(); updateSkillHUD();
+            gamePaused=false; canvas.requestPointerLock(); lastTime=performance.now(); setSpawnInterval();
+        }
+        init();
+    </script>
+</body>
+</html>
