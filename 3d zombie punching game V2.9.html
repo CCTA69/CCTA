@@ -1,0 +1,1788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Roguelike Arena</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #fff;
+            overflow: hidden;
+        }
+        #game-canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        #reticle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 6px;
+            height: 6px;
+            background-color: red;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            display: none;
+        }
+        #hud {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 10;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #333;
+            min-width: 300px;
+        }
+        .hud-item {
+            margin-bottom: 10px;
+        }
+        .hud-item label {
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #eee;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .bar-container {
+            width: 100%;
+            height: 20px;
+            background-color: #555;
+            border-radius: 5px;
+            overflow: hidden;
+            border: 1px solid #222;
+        }
+        #player-health-bar {
+            width: 100%;
+            height: 100%;
+            background-color: #4CAF50;
+            transition: width 0.3s ease;
+        }
+        #player-xp-bar {
+            width: 0%;
+            height: 100%;
+            background-color: #3b82f6;
+            transition: width 0.3s ease;
+        }
+        #ultimate-bar {
+            width: 0%;
+            height: 100%;
+            background-color: #a855f7;
+            transition: width 0.3s ease;
+        }
+        #skill-slots {
+            display: flex;
+            gap: 10px;
+            margin-top: 5px;
+        }
+        .skill-slot {
+            width: 70px;
+            height: 60px;
+            background-color: #333;
+            border: 1px solid #555;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8em;
+            color: #888;
+            padding: 2px;
+            box-sizing: border-box;
+            text-align: center;
+            line-height: 1.2;
+            overflow: hidden;
+        }
+        .skill-slot .skill-key {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #fff;
+        }
+        .skill-slot .skill-name {
+            font-size: 0.85em;
+            color: #ddd;
+            white-space: nowrap;
+        }
+        .skill-slot .skill-level {
+            font-size: 0.75em;
+            color: #4CAF50;
+        }
+        .skill-slot.cooldown {
+            background-color: #111;
+        }
+        .skill-slot.cooldown .skill-name, .skill-slot.cooldown .skill-level {
+             color: #555;
+        }
+        #ultimate-slot {
+             width: 80px; height: 70px; border-color: #a855f7;
+        }
+        #ultimate-slot .skill-key { color: #a855f7; }
+
+        #boss-hud {
+            display: none;
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40%;
+            z-index: 15;
+        }
+        #boss-name {
+            text-align: center;
+            display: block;
+            font-size: 1.8em;
+            color: #ff3300;
+            font-weight: bold;
+            text-shadow: 0 0 10px #000;
+            margin-bottom: 5px;
+        }
+        #boss-health-container {
+            height: 25px;
+            border: 2px solid #500;
+            background-color: #220000;
+        }
+        #boss-health-bar {
+            width: 100%;
+            height: 100%;
+            background-color: #ff3300;
+            transition: width 0.1s linear;
+        }
+
+        #message-box, #level-up-message {
+            position: absolute;
+            top: 30%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-size: 2em;
+            font-weight: bold;
+            display: none;
+            z-index: 100;
+            text-align: center;
+        }
+        #message-box { background-color: rgba(200, 0, 0, 0.8); }
+        #level-up-message { 
+            background-color: rgba(59, 130, 246, 0.9); 
+            top: 40%; 
+            font-size: 2.5em; 
+            color: #fff; 
+            border: 2px solid #fff; 
+        }
+        #game-info {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.6);
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 1.2em;
+            z-index: 10;
+            text-align: center;
+            width: 80%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        #skill-choice-ui, #skill-replace-ui, #shop-ui {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            max-width: 900px;
+            background-color: rgba(10, 10, 10, 0.98);
+            border: 2px solid #555;
+            border-radius: 10px;
+            z-index: 200;
+            display: none;
+            color: #fff;
+            padding: 20px;
+            box-sizing: border-box;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        #skill-choice-ui h2, #skill-replace-ui h2, #shop-ui h2 {
+            text-align: center;
+            margin-top: 0;
+            color: #ffc;
+            font-size: 2em;
+        }
+        #skill-choice-options, #skill-replace-options {
+            display: flex;
+            justify-content: space-around;
+            gap: 15px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .skill-choice-option {
+            background-color: #222;
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 15px;
+            flex: 1 1 250px; 
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .skill-choice-option:hover {
+            background-color: #333;
+            border-color: #3b82f6;
+            transform: translateY(-2px);
+        }
+        .skill-choice-option h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.4em;
+            color: #3b82f6;
+        }
+        .skill-choice-option .level-up-tag {
+            color: #4CAF50;
+            font-size: 0.8em;
+            display: block;
+            margin-top: -5px;
+            margin-bottom: 10px;
+        }
+        .skill-choice-option .mastery-tag {
+            color: #a855f7; 
+            font-weight: bold;
+            font-size: 0.9em;
+            display: block;
+            margin-top: 5px;
+        }
+        .skill-choice-option p {
+            margin: 0;
+            font-size: 0.95em;
+            color: #ccc;
+            min-height: 50px;
+        }
+        #skill-replace-ui h3 { color: #f44336; }
+        .ui-btn {
+            padding: 10px 30px;
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            cursor: pointer;
+            font-size: 1.1em;
+            border-radius: 5px;
+            transition: background 0.2s;
+        }
+        .ui-btn:hover { background: #444; }
+
+        /* Shop Styles */
+        #shop-tabs { display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; }
+        .shop-tab { padding: 10px 20px; background: #222; border: 1px solid #444; cursor: pointer; border-radius: 5px 5px 0 0; }
+        .shop-tab.active { background: #444; border-bottom-color: #444; }
+        .shop-content { display: none; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
+        .shop-content.active { display: grid; }
+        .shop-item { background: #1a1a1a; border: 2px solid #333; padding: 15px; border-radius: 8px; text-align: center; display: flex; flex-direction: column; justify-content: space-between; }
+        .shop-item h4 { margin: 0 0 10px 0; color: #eee; }
+        .shop-item p { font-size: 0.9em; color: #aaa; flex-grow: 1; }
+        .shop-item button { margin-top: 10px; padding: 8px; background: #4CAF50; border: none; color: white; cursor: pointer; border-radius: 4px; }
+        .shop-item button:disabled { background: #555; cursor: not-allowed; }
+        .shop-item button.equipped { background: #2196F3; }
+        .rarity-common { border-color: #999; }
+        .rarity-uncommon { border-color: #4CAF50; }
+        .rarity-rare { border-color: #2196F3; }
+        .rarity-epic { border-color: #9C27B0; }
+        .rarity-legendary { border-color: #FF9800; }
+        .rarity-mythic { border-color: #F44336; }
+        
+        #cheat-console {
+            position: absolute; top: 0; left: 0; width: 100%; padding: 10px; background: rgba(0,0,0,0.8); z-index: 1000; display: none;
+        }
+        #cheat-input {
+            width: 90%; padding: 10px; font-size: 1.2em; background: #333; color: #0f0; border: 1px solid #555; font-family: monospace;
+        }
+
+    </style>
+</head>
+<body>
+    <canvas id="game-canvas"></canvas>
+    <div id="reticle"></div>
+
+    <div id="hud">
+        <div class="hud-item">
+            <label>Health</label>
+            <div class="bar-container"><div id="player-health-bar"></div></div>
+        </div>
+        <div class="hud-item">
+            <label>XP (Level <span id="player-level">1</span>)</label>
+            <div class="bar-container"><div id="player-xp-bar"></div></div>
+        </div>
+        <div class="hud-item">
+            <label>Ultimate</label>
+            <div class="bar-container"><div id="ultimate-bar"></div></div>
+        </div>
+        <div class="hud-item">
+            <label>Skills</label>
+            <div id="skill-slots">
+                <div id="skill-slot-0" class="skill-slot"><span class="skill-key">Q</span><span class="skill-name">-</span><span class="skill-level"></span></div>
+                <div id="skill-slot-1" class="skill-slot"><span class="skill-key">E</span><span class="skill-name">-</span><span class="skill-level"></span></div>
+                <div id="skill-slot-2" class="skill-slot"><span class="skill-key">R</span><span class="skill-name">-</span><span class="skill-level"></span></div>
+                <div id="skill-slot-3" class="skill-slot"><span class="skill-key">F</span><span class="skill-name">-</span><span class="skill-level"></span></div>
+                <div id="ultimate-slot" class="skill-slot"><span class="skill-key">Z</span><span class="skill-name">Ultimate</span><span class="skill-level">-</span></div>
+            </div>
+        </div>
+        <div class="hud-item"><label>Kills: <span id="kill-count">0</span></label></div>
+        <div class="hud-item"><label>Coins: <span id="coin-count" style="color: gold;">0</span></label></div>
+        <div class="hud-item"><label>Weapon: <span id="weapon-name">Fist</span></label></div>
+        <div class="hud-item"><label>Armor: <span id="armor-name">None</span></label></div>
+    </div>
+
+    <div id="boss-hud">
+        <label id="boss-name">BOSS RANK C</label>
+        <div id="boss-health-container" class="bar-container">
+            <div id="boss-health-bar"></div>
+        </div>
+    </div>
+
+    <div id="message-box" onclick="restartGame()">YOU DIED<br><span style="font-size: 0.5em;">Click to Restart</span></div>
+    <div id="level-up-message">LEVEL UP!</div>
+    <div id="game-info">WASD: Move | SPACE: Attack | MOUSE: Look/Aim | 1, 2, 3: Weapons | Q, E, R, F: Skills | Z: Ultimate | B: Shop | P: Toggle View</div>
+
+    <div id="skill-choice-ui">
+        <h2>CHOOSE YOUR UPGRADE</h2>
+        <div id="skill-choice-options"></div>
+        <div style="text-align: center; margin-top: 20px;">
+             <button id="skip-skill-btn" class="ui-btn">Skip</button>
+        </div>
+    </div>
+
+    <div id="skill-replace-ui">
+        <h2>REPLACE WHICH SKILL?</h2>
+        <div id="skill-replace-options"></div>
+        <div style="text-align: center; margin-top: 20px;">
+             <button id="cancel-replace-btn" class="ui-btn">Cancel</button>
+        </div>
+    </div>
+
+    <div id="shop-ui">
+        <h2>SHOP <span id="shop-coin-count" style="color: gold; font-size: 0.8em;">(0 Coins)</span></h2>
+        <div id="shop-tabs">
+            <div class="shop-tab active" onclick="switchShopTab('weapons')">Weapons</div>
+            <div class="shop-tab" onclick="switchShopTab('armor')">Armor</div>
+            <div class="shop-tab" onclick="switchShopTab('ultimates')">Ultimates</div>
+        </div>
+        <div id="shop-weapons" class="shop-content active"></div>
+        <div id="shop-armor" class="shop-content"></div>
+        <div id="shop-ultimates" class="shop-content"></div>
+        <div style="text-align: center; margin-top: 20px;">
+             <button id="close-shop-btn" class="ui-btn">Close Shop</button>
+        </div>
+    </div>
+    
+    <div id="cheat-console">
+        <input type="text" id="cheat-input" placeholder="Enter Cheat Code...">
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+
+    <script type="module">
+        let scene, camera, renderer, world;
+        let player = {
+            mesh: null, body: null, cameraPivot: null,
+            health: 100, maxHealth: 100, level: 1, xp: 0, xpToNextLevel: 100, coins: 0,
+            equippedSkills: [null, null, null, null],
+            skillLevels: {}, 
+            skillCooldowns: [0, 0, 0, 0],
+            equippedUltimate: null, ultimateCooldown: 0,
+            ultimateCharge: 0, maxUltimateCharge: 100, isDead: false,
+            attackCooldown: false, attackSpeedMultiplier: 1, damageReduction: 0,
+            weaponMesh: null, currentWeapon: 'fist_common',
+            dashUntil: 0, isMoving: false,
+            isPhaseShifting: false, 
+            hasBloodlust: false,    
+            attackState: { active: false, time: 0, duration: 0.25, startRot: 0, startPos: new THREE.Vector3() },
+            skillAnim: { active: false, type: null, time: 0, duration: 0.5 },
+            ultimateAnim: { active: false, type: null, time: 0, duration: 1.0 }, 
+            ownedItems: { 'fist_common': true }, 
+            currentArmor: null,
+            cheatsEnabled: false,
+            activeUltimates: [],
+            regenTimer: 0,
+            isFirstPerson: false // Default to third person
+        };
+        
+        // Rank Multipliers for Passives: [Common, Uncommon, Rare, Epic, Legendary, Mythic]
+        const RANKS = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4, mythic: 5 };
+
+        const weapons = {
+            // Fists
+            fist_common: { name: 'Fists', type: 'fist', damage: 35, range: 2.0, cooldown: 250, rank: 'common', price: 0, passive: 'None', createMesh: createFistMesh },
+            // Swords (Cleave: damage in arc)
+            sword_common: { name: 'Iron Sword', type: 'sword', damage: 75, range: 3.0, cooldown: 600, rank: 'common', price: 500, passive: 'Cleave (20%)', cleave: 0.2, createMesh: () => createSwordMesh(0xaaaaaa) },
+            sword_rare: { name: 'Steel Sword', type: 'sword', damage: 150, range: 3.2, cooldown: 550, rank: 'rare', price: 2500, passive: 'Cleave (40%)', cleave: 0.4, createMesh: () => createSwordMesh(0x2196F3) },
+            sword_legendary: { name: 'Excalibur', type: 'sword', damage: 400, range: 3.5, cooldown: 500, rank: 'legendary', price: 20000, passive: 'Cleave (75%)', cleave: 0.75, createMesh: () => createSwordMesh(0xFF9800) },
+            sword_mythic: { name: 'Godslayer', type: 'sword', damage: 1200, range: 4.5, cooldown: 400, rank: 'mythic', price: 150000, passive: 'Cleave (100%)', cleave: 1.0, createMesh: () => createSwordMesh(0xFF0000) },
+            // Katanas (Bleed: DoT)
+            katana_uncommon: { name: 'Uchigatana', type: 'katana', damage: 60, range: 2.8, cooldown: 350, rank: 'uncommon', price: 1200, passive: 'Bleed (100%)', bleed: 1.0, createMesh: () => createKatanaMesh(0x888888) },
+            katana_epic: { name: 'Masamune', type: 'katana', damage: 250, range: 3.0, cooldown: 300, rank: 'epic', price: 12000, passive: 'Bleed (300%)', bleed: 3.0, createMesh: () => createKatanaMesh(0x9C27B0) },
+            katana_mythic: { name: 'Murasame', type: 'katana', damage: 800, range: 3.5, cooldown: 250, rank: 'mythic', price: 150000, passive: 'Bleed (600%)', bleed: 6.0, createMesh: () => createKatanaMesh(0xFF0000) },
+            // Spears (Pierce: Line damage)
+            spear_rare: { name: 'Steel Spear', type: 'spear', damage: 140, range: 5.0, cooldown: 700, rank: 'rare', price: 3000, passive: 'Pierce (3 Enemies)', pierce: 3, createMesh: () => createSpearMesh(0x2196F3) },
+            spear_legendary: { name: 'Gungnir', type: 'spear', damage: 450, range: 7.0, cooldown: 650, rank: 'legendary', price: 25000, passive: 'Pierce (6 Enemies)', pierce: 6, createMesh: () => createSpearMesh(0xFF9800) },
+            // Bows (Critical: Chance for 3x dmg)
+            bow_uncommon: { name: 'Longbow', type: 'bow', damage: 60, cooldown: 800, rank: 'uncommon', price: 1500, projSpeed: 60, passive: 'Crit (15%)', crit: 0.15, createMesh: () => createBowMesh(0x4CAF50) },
+            bow_epic: { name: 'Elven Bow', type: 'bow', damage: 200, cooldown: 600, rank: 'epic', price: 10000, projSpeed: 80, passive: 'Crit (30%)', crit: 0.30, createMesh: () => createBowMesh(0x9C27B0) },
+            bow_mythic: { name: 'Artemis Bow', type: 'bow', damage: 700, cooldown: 400, rank: 'mythic', price: 150000, projSpeed: 120, passive: 'Crit (60%)', crit: 0.60, createMesh: () => createBowMesh(0xFF0000) },
+            // Guns (Ricochet: Bounces)
+            gun_rare: { name: 'Revolver', type: 'gun', damage: 120, cooldown: 500, rank: 'rare', price: 5000, projSpeed: 150, passive: 'Ricochet (1)', ricochet: 1, createMesh: () => createGunMesh(0x2196F3) },
+            gun_mythic: { name: 'Doombringer', type: 'gun', damage: 300, cooldown: 100, rank: 'mythic', price: 250000, projSpeed: 200, passive: 'Ricochet (5) + Rapid', ricochet: 5, createMesh: () => createGunMesh(0xFF0000) },
+        };
+
+        const armors = {
+            armor_common: { name: 'Leather Tunic', rank: 'common', price: 800, reduction: 0.10, passive: 'None' },
+            armor_uncommon: { name: 'Chainmail', rank: 'uncommon', price: 2500, reduction: 0.20, passive: 'None' },
+            armor_rare: { name: 'Spiked Armor', rank: 'rare', price: 8000, reduction: 0.30, passive: 'Thorns (20%)', thorns: 0.2 },
+            armor_epic: { name: 'Paladin Plate', rank: 'epic', price: 30000, reduction: 0.45, passive: 'Regen (2 HP/s)', regen: 2 },
+            armor_legendary: { name: 'Dragon Armor', rank: 'legendary', price: 100000, reduction: 0.60, passive: 'Thorns (40%) + Regen (5 HP/s)', thorns: 0.4, regen: 5 },
+            armor_mythic: { name: 'Quantum Suit', rank: 'mythic', price: 500000, reduction: 0.75, passive: 'GOD MODE: 75% Resist, 50% Thorns, 10 HP/s Regen', thorns: 0.5, regen: 10 }
+        };
+
+        const allSkills = {
+            dash: { id: 'dash', name: 'Dash', description: 'Quick burst of speed.', baseCooldown: 2000, mastery: 'Lv.5: Phase Shift', ultimate: 'voidDash' },
+            heal: { id: 'heal', name: 'Heal', description: 'Restore health.', baseCooldown: 10000, mastery: 'Lv.5: Holy Nova', ultimate: 'resurrection' },
+            stomp: { id: 'stomp', name: 'Stomp', description: 'Knockback nearby enemies.', baseCooldown: 5000, mastery: 'Lv.5: Seismic Wave', ultimate: 'earthquake' },
+            fireball: { id: 'fireball', name: 'Fireball', description: 'Launch explosive projectile.', baseCooldown: 3000, mastery: 'Lv.5: Inferno', ultimate: 'meteorShower' },
+            iceNova: { id: 'iceNova', name: 'Ice Nova', description: 'Freeze nearby enemies.', baseCooldown: 7000, mastery: 'Lv.5: Deep Freeze', ultimate: 'blizzard' },
+            berserk: { id: 'berserk', name: 'Berserk', description: 'Temporarily boost attack speed.', baseCooldown: 12000, mastery: 'Lv.5: Bloodlust', ultimate: 'undyingRage' }
+        };
+
+        const ultimates = {
+            voidDash: { name: 'Void Dash', baseSkill: 'dash', price: 25000, cooldown: 30000, description: 'Teleport & massive explosion.' },
+            resurrection: { name: 'Resurrection', baseSkill: 'heal', price: 25000, cooldown: 120000, description: 'Full heal & global holy blast.' },
+            earthquake: { name: 'Earthquake', baseSkill: 'stomp', price: 25000, cooldown: 45000, description: '10s of continuous shockwaves.' },
+            meteorShower: { name: 'Meteor Impact', baseSkill: 'fireball', price: 25000, cooldown: 40000, description: 'Summons a massive meteor that creates an erupting volcano.' },
+            blizzard: { name: 'Blizzard', baseSkill: 'iceNova', price: 25000, cooldown: 50000, description: 'Freeze EVERYTHING for 8s.' },
+            undyingRage: { name: 'Undying Rage', baseSkill: 'berserk', price: 25000, cooldown: 60000, description: '10s invincibility & 3x damage.' }
+        };
+
+        const BOSS_RANKS = [
+            { level: 5, name: 'RANK C', hp: 2000, damage: 15, scale: 1.6, color: 0xff6600, xp: 1000, coins: 1000 },
+            { level: 10, name: 'RANK B', hp: 5000, damage: 30, scale: 2.0, color: 0xff0000, xp: 3000, coins: 3000 },
+            { level: 15, name: 'RANK A', hp: 12000, damage: 50, scale: 2.5, color: 0x880000, xp: 8000, coins: 8000 },
+            { level: 20, name: 'RANK S', hp: 30000, damage: 80, scale: 3.0, color: 0x660066, xp: 20000, coins: 20000 },
+            { level: 25, name: 'RANK SS', hp: 75000, damage: 150, scale: 3.5, color: 0x111111, xp: 50000, coins: 50000 },
+            { level: 30, name: 'RANK SSS', hp: 200000, damage: 300, scale: 4.5, color: 0xffffff, xp: 150000, coins: 150000 }
+        ];
+        
+        // --- NEW: XP Bonus for zombie weapons based on rank ---
+        const rankXpBonus = { common: 20, uncommon: 50, rare: 100, epic: 250, legendary: 750, mythic: 2000 };
+
+        let zombies = [];
+        let projectiles = [];
+        let persistentEffects = []; 
+        let spectators = [];
+        let keysPressed = {};
+        let lastTime = performance.now();
+        let mouse = { x: 0, y: 0 };
+        let killCount = 0;
+        let gameTime = 0; 
+        let gamePaused = false;
+        let pendingSkillReplacement = null;
+        let spawnIntervalId = null; 
+        let currentSpawnDelay = 1000; // FASTER START
+        let bossActive = false;
+        let currentBoss = null;
+
+        const groundMaterial = new CANNON.Material("groundMaterial");
+        const playerMaterial = new CANNON.Material("playerMaterial");
+        const zombieMaterial = new CANNON.Material("zombieMaterial");
+
+        const canvas = document.getElementById('game-canvas');
+        const playerHealthBar = document.getElementById('player-health-bar');
+        const playerXpBar = document.getElementById('player-xp-bar');
+        const playerLevelEl = document.getElementById('player-level');
+        const ultimateBar = document.getElementById('ultimate-bar');
+        const weaponNameEl = document.getElementById('weapon-name');
+        const armorNameEl = document.getElementById('armor-name');
+        const coinCountEl = document.getElementById('coin-count');
+        const messageBox = document.getElementById('message-box');
+        const levelUpMessage = document.getElementById('level-up-message');
+        const killCountEl = document.getElementById('kill-count');
+        const skillChoiceUI = document.getElementById('skill-choice-ui');
+        const skillReplaceUI = document.getElementById('skill-replace-ui');
+        const shopUI = document.getElementById('shop-ui');
+        const skillSlotEls = [0,1,2,3].map(i => document.getElementById(`skill-slot-${i}`));
+        const ultimateSlotEl = document.getElementById('ultimate-slot');
+        const bossHud = document.getElementById('boss-hud');
+        const bossNameEl = document.getElementById('boss-name');
+        const bossHealthBar = document.getElementById('boss-health-bar');
+        const reticleEl = document.getElementById('reticle');
+        const cheatConsole = document.getElementById('cheat-console');
+        const cheatInput = document.getElementById('cheat-input');
+
+        function onWindowResize() { camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB); // Sunny sky
+            scene.fog = new THREE.Fog(0x87CEEB, 20, 150);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            
+            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+            const dirLight = new THREE.DirectionalLight(0xfffee0, 0.8);
+            dirLight.position.set(20, 50, 30);
+            dirLight.castShadow = true;
+            dirLight.shadow.camera.left = -100; dirLight.shadow.camera.right = 100;
+            dirLight.shadow.camera.top = 100; dirLight.shadow.camera.bottom = -100;
+            dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048;
+            scene.add(dirLight);
+
+            world = new CANNON.World();
+            world.gravity.set(0, -30, 0); 
+            world.broadphase = new CANNON.NaiveBroadphase();
+            world.addContactMaterial(new CANNON.ContactMaterial(groundMaterial, playerMaterial, { friction: 0.0, restitution: 0.0 }));
+            world.addContactMaterial(new CANNON.ContactMaterial(groundMaterial, zombieMaterial, { friction: 0.0, restitution: 0.0 }));
+            world.addContactMaterial(new CANNON.ContactMaterial(playerMaterial, zombieMaterial, { friction: 0.0, restitution: 0.2 }));
+
+            const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0xE6D5AC, roughness: 1.0, metalness: 0.0 }));
+            floorMesh.rotation.x = -Math.PI / 2; floorMesh.receiveShadow = true; scene.add(floorMesh);
+            const floorBody = new CANNON.Body({ mass: 0, material: groundMaterial });
+            floorBody.addShape(new CANNON.Plane());
+            floorBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+            world.addBody(floorBody);
+
+            createColosseum();
+
+            player.body = new CANNON.Body({ mass: 80, material: playerMaterial, fixedRotation: true, linearDamping: 0.9 });
+            player.body.addShape(new CANNON.Box(new CANNON.Vec3(0.4, 1, 0.4)));
+            player.body.position.set(0, 5, 0);
+            world.addBody(player.body);
+            player.mesh = createHumanoidMesh(0x0077ff); 
+            const playerGroup = new THREE.Group();
+            playerGroup.add(player.mesh);
+            
+            player.cameraPivot = new THREE.Object3D();
+            player.cameraPivot.position.set(0, 2.85, 0); 
+            playerGroup.add(player.cameraPivot);
+            player.cameraPivot.add(camera);
+            updateCameraPosition(); // Set initial camera position based on player.isFirstPerson
+
+            scene.add(playerGroup);
+            
+            switchWeapon('fist_common'); 
+            window.addEventListener('keydown', (e) => { 
+                if (e.key === '`') { toggleCheatConsole(); return; } 
+                const k = e.key.toLowerCase();
+                if (k === ' ') attack();
+                else { keysPressed[k] = true; handleKeyPress(k); }
+            });
+            window.addEventListener('keyup', (e) => { keysPressed[e.key.toLowerCase()] = false; });
+            window.addEventListener('resize', onWindowResize, false);
+            
+            canvas.addEventListener('click', () => {
+                const menuOpen = skillChoiceUI.style.display === 'block' || skillReplaceUI.style.display === 'block' || messageBox.style.display === 'block' || shopUI.style.display === 'block' || cheatConsole.style.display === 'block';
+                if (!player.isDead && !menuOpen && !gamePaused) {
+                    try { canvas.requestPointerLock(); } catch (e) { console.warn("Pointer lock failed:", e); }
+                }
+            });
+
+            document.addEventListener('pointerlockchange', lockChangeAlert, false);
+            document.addEventListener('mousemove', (e) => { if (document.pointerLockElement === canvas) { mouse.x = e.movementX || 0; mouse.y = e.movementY || 0; } }, false);
+            document.getElementById('cancel-replace-btn').onclick = cancelReplacement;
+            document.getElementById('skip-skill-btn').onclick = resumeGame;
+            document.getElementById('close-shop-btn').onclick = closeShop;
+            cheatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') processCheat(); });
+
+            spawnZombie(); setSpawnInterval(); animate();
+        }
+
+        function createColosseum() {
+             const radius = 70, segments = 36, wallHeight = 6; // Bigger radius, lower walls
+             const wallMat = new THREE.MeshStandardMaterial({ color: 0xF5F5F5, roughness: 0.7 });
+             const seatMat = new THREE.MeshStandardMaterial({ color: 0xEEEEEE, roughness: 0.9 });
+             const goldMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 0.8, roughness: 0.2 });
+
+             for(let i=0; i<segments; i++) {
+                  const angle = (i / segments) * Math.PI * 2;
+                  const x = Math.sin(angle) * radius;
+                  const z = Math.cos(angle) * radius;
+                  const pos = new CANNON.Vec3(x, wallHeight/2, z);
+                  const rotY = Math.atan2(x, z);
+                  createWallSegment(pos, rotY, (Math.PI*2*radius)/segments + 1, wallHeight, wallMat);
+
+                  if (i % 4 === 0) {
+                       const laurel = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.3, 8, 16), goldMat);
+                       laurel.position.set(x * 0.98, wallHeight - 2, z * 0.98);
+                       laurel.lookAt(0, wallHeight - 2, 0);
+                       scene.add(laurel);
+                  }
+             }
+             
+             for(let r=1; r<=6; r++) {
+                  const seatRadius = radius + r * 3;
+                  const seatHeight = wallHeight + r * 2; // Seats start ABOVE wall
+                  const ring = new THREE.Mesh(new THREE.CylinderGeometry(seatRadius+2, seatRadius, 1, 48, 1, true), seatMat);
+                  ring.position.y = seatHeight; scene.add(ring);
+                  
+                  for(let s=0; s<40; s++) {
+                       const angle = Math.random() * Math.PI * 2;
+                       const sx = Math.sin(angle) * seatRadius;
+                       const sz = Math.cos(angle) * seatRadius;
+                       const spec = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.6, 0.8), new THREE.MeshStandardMaterial({ color: Math.random() * 0xffffff }));
+                       spec.position.set(sx, seatHeight + 0.8, sz);
+                       spec.lookAt(0, 5, 0);
+                       scene.add(spec);
+                       spectators.push({ mesh: spec, baseY: seatHeight + 0.8, offset: Math.random() * Math.PI * 2 });
+                  }
+             }
+        }
+        function createWallSegment(pos, rotY, w, h, mat) {
+            const b = new CANNON.Body({ mass: 0, material: groundMaterial });
+            b.addShape(new CANNON.Box(new CANNON.Vec3(w/2, h/2, 1)));
+            b.position.copy(pos);
+            b.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), rotY);
+            world.addBody(b);
+            const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 2), mat);
+            m.position.copy(pos);
+            m.quaternion.copy(b.quaternion);
+            m.castShadow=true; m.receiveShadow=true;
+            scene.add(m);
+        }
+
+        function createHumanoidMesh(color) {
+            const g = new THREE.Group();
+            const m = new THREE.MeshStandardMaterial({ color: color, roughness: 0.7, metalness: 0.1 });
+            const d = new THREE.MeshStandardMaterial({ color: 0x222222 });
+            const leg = new THREE.BoxGeometry(0.3, 0.9, 0.3);
+            const lLeg = new THREE.Mesh(leg, m); lLeg.position.set(-0.2, 0.45, 0); lLeg.castShadow=true; lLeg.name='leftLeg'; lLeg.geometry.translate(0, -0.45, 0); lLeg.position.y+=0.45; g.add(lLeg);
+            const rLeg = new THREE.Mesh(leg, m); rLeg.position.set(0.2, 0.45, 0); rLeg.castShadow=true; rLeg.name='rightLeg'; rLeg.geometry.translate(0, -0.45, 0); rLeg.position.y+=0.45; g.add(rLeg);
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.4), m); torso.position.set(0, 1.25, 0); torso.castShadow=true; torso.name='torso'; g.add(torso);
+            const arm = new THREE.BoxGeometry(0.25, 0.7, 0.25);
+            const lArm = new THREE.Mesh(arm, m); lArm.position.set(-0.55, 1.25, 0); lArm.castShadow=true; lArm.name='leftArm'; lArm.geometry.translate(0, -0.35, 0); lArm.position.y+=0.35; g.add(lArm);
+            const rArm = new THREE.Mesh(arm, m); rArm.position.set(0.55, 1.25, 0); rArm.castShadow=true; rArm.name='rightArm'; rArm.geometry.translate(0, -0.35, 0); rArm.position.y+=0.35; g.add(rArm);
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), m); head.position.set(0, 1.85, 0); head.castShadow=true; head.name='head'; g.add(head);
+            const eye = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+            const lEye = new THREE.Mesh(eye, d); lEye.position.set(-0.15, 1.85, -0.25); g.add(lEye);
+            const rEye = new THREE.Mesh(eye, d); rEye.position.set(0.15, 1.85, -0.25); g.add(rEye);
+            g.position.y = -1.0; return g;
+        }
+        function createSwordMesh(color) {
+            const g = new THREE.Group();
+            const b = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.3, 0.05), new THREE.MeshStandardMaterial({ color: 0xeeeeee, metalness: 0.8, roughness: 0.2 })); b.position.y = 0.8; b.castShadow=true; g.add(b);
+            const gd = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.15), new THREE.MeshStandardMaterial({ color: color, metalness: 0.6, roughness: 0.3 })); gd.position.y = 0.15; gd.castShadow=true; g.add(gd);
+            const h = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.4, 0.08), new THREE.MeshStandardMaterial({ color: 0x553311, roughness: 0.8 })); h.position.y = -0.05; h.castShadow=true; g.add(h);
+            return g;
+        }
+        function createKatanaMesh(color) {
+            const g = new THREE.Group(); 
+            const b = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.6, 0.08), new THREE.MeshStandardMaterial({ color: 0xeeeeee, metalness: 0.9, roughness: 0.1 })); b.position.y = 0.9; b.rotation.x = 0.1; b.castShadow=true; g.add(b);
+            const h = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.5, 8), new THREE.MeshStandardMaterial({ color: color, roughness: 0.8 })); h.position.y = 0; h.castShadow=true; g.add(h);
+            const gd = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.02, 16), new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.5 })); gd.position.y = 0.25; g.add(gd);
+            return g;
+        }
+        function createSpearMesh(color) {
+            const g = new THREE.Group();
+            const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.5, 8), new THREE.MeshStandardMaterial({ color: 0x5D4037, roughness: 0.9 })); shaft.position.y = 1.0; shaft.castShadow=true; g.add(shaft);
+            const tip = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.4, 4), new THREE.MeshStandardMaterial({ color: color, metalness: 0.8, roughness: 0.2 })); tip.position.y = 2.4; tip.castShadow=true; g.add(tip);
+            return g;
+        }
+        function createFistMesh() {
+            const g = new THREE.Group(); const mat = new THREE.MeshStandardMaterial({ color: 0x882222, roughness: 0.5 }); const geo = new THREE.SphereGeometry(0.18, 8, 8);
+            const l = new THREE.Mesh(geo, mat); l.position.set(-0.35, 0, 0); g.add(l);
+            const r = new THREE.Mesh(geo, mat); r.position.set(0.35, 0, 0); g.add(r);
+            return g;
+        }
+        function createBowMesh(color) {
+             const g = new THREE.Group(); const mat = new THREE.MeshStandardMaterial({ color: color || 0x8B4513, roughness: 0.6 });
+             const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(0, -0.6, 0), new THREE.Vector3(0.4, 0, 0), new THREE.Vector3(0, 0.6, 0));
+             const tube = new THREE.TubeGeometry(curve, 20, 0.05, 8, false);
+             const bow = new THREE.Mesh(tube, mat); g.add(bow);
+             const stringMat = new THREE.LineBasicMaterial({ color: 0xeeeeee });
+             const stringGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -0.6, 0), new THREE.Vector3(0, 0.6, 0)]);
+             const string = new THREE.Line(stringGeo, stringMat); g.add(string);
+             return g;
+        }
+        function createGunMesh(color) {
+            const g = new THREE.Group(); const mat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.7, roughness: 0.3 });
+            const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.6), mat); barrel.position.set(0, 0.1, 0.2); g.add(barrel);
+            const handle = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.3, 0.15), new THREE.MeshStandardMaterial({color: color})); handle.position.set(0, -0.1, 0); handle.rotation.x = 0.3; g.add(handle);
+            return g;
+        }
+
+        function animate() {
+            if (player.isDead && !gamePaused) gamePaused = true;
+            if (gamePaused) { requestAnimationFrame(animate); return; }
+            requestAnimationFrame(animate);
+            const time = performance.now(), delta = (time - lastTime) / 1000.0; gameTime = time;
+            world.step(1/60, delta);
+            handlePlayerMovement(delta);
+            updatePlayerAnimations(gameTime/1000, delta);
+            
+            if (player.currentArmor && armors[player.currentArmor].regen) {
+                 player.regenTimer += delta;
+                 if (player.regenTimer >= 1.0) {
+                      player.health = Math.min(player.maxHealth, player.health + armors[player.currentArmor].regen);
+                      player.regenTimer = 0; updateHUD();
+                 }
+            }
+
+            // Animate Spectators
+            spectators.forEach(s => {
+                 s.mesh.position.y = s.baseY + Math.max(0, Math.sin(gameTime/200 + s.offset) * 0.5);
+            });
+
+            if (player.mesh) player.mesh.parent.position.copy(player.body.position);
+
+            for (let i = zombies.length - 1; i >= 0; i--) {
+                const z = zombies[i]; if (!z || !z.group || !z.body) continue;
+                z.group.position.copy(z.body.position); z.group.quaternion.copy(z.body.quaternion);
+                
+                const dist = player.body.position.distanceTo(z.body.position);
+                // --- MODIFIED: Use weapon range for attack range ---
+                const attackRange = z.isBoss ? 1.5 * z.rank.scale : (z.equippedWeapon ? z.equippedWeapon.range * 0.8 : 1.5); // 80% of player range
+
+                if (z.isFrozen && gameTime > z.freezeUntil) { z.isFrozen = false; z.isBrittle = false; setEntityColor(z.mesh, z.isBoss ? z.rank.color : (z.isGolden ? 0xffd700 : 0x44cc44)); }
+                
+                if (!z.isFrozen) {
+                    if (z.attackState === 'chase') {
+                         const dir = new CANNON.Vec3(); player.body.position.vsub(z.body.position, dir); dir.y=0; dir.normalize();
+                         z.body.velocity.set(dir.x * z.baseSpeed, z.body.velocity.y, dir.z * z.baseSpeed);
+                         z.body.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), Math.atan2(dir.x, dir.z));
+                         const s = 8 * (z.isBoss ? 0.5 : 1), a = Math.sin(gameTime/1000*s)*0.3;
+                         if(z.mesh.getObjectByName('leftLeg')) z.mesh.getObjectByName('leftLeg').rotation.x=a;
+                         if(z.mesh.getObjectByName('rightLeg')) z.mesh.getObjectByName('rightLeg').rotation.x=-a;
+                         
+                         // --- MODIFIED: Don't swing arms if holding a weapon ---
+                         if (!z.weaponMesh) {
+                            if(z.mesh.getObjectByName('leftArm')) z.mesh.getObjectByName('leftArm').rotation.x=-a;
+                            if(z.mesh.getObjectByName('rightArm')) z.mesh.getObjectByName('rightArm').rotation.x=a;
+                         }
+
+                         if (dist < attackRange) {
+                             z.attackState = 'windup';
+                             z.attackTimer = gameTime + 500; 
+                         }
+                    } else if (z.attackState === 'windup') {
+                        z.body.velocity.set(0, z.body.velocity.y, 0); 
+                        
+                        // --- MODIFIED: Windup animation for weapon ---
+                        if (z.weaponMesh) {
+                            if (z.equippedWeapon.type === 'spear') z.weaponMesh.position.z = 0.5; // Pull back
+                            else z.weaponMesh.rotation.x = Math.PI - 0.5; // Swing back
+                        } else {
+                            if(z.mesh.getObjectByName('leftArm')) z.mesh.getObjectByName('leftArm').rotation.x = Math.PI - 0.5;
+                            if(z.mesh.getObjectByName('rightArm')) z.mesh.getObjectByName('rightArm').rotation.x = Math.PI - 0.5;
+                        }
+
+
+                        if (gameTime > z.attackTimer) {
+                            z.attackState = 'strike';
+                            if (dist < attackRange) {
+                                // --- MODIFIED: Use weapon damage ---
+                                let dmg = z.isBoss ? z.rank.damage : 15;
+                                if (z.equippedWeapon) {
+                                    dmg = z.equippedWeapon.damage;
+                                }
+                                takeDamage(dmg, z); 
+                                // --- MODIFIED: Apply weapon passives ---
+                                if (z.equippedWeapon && z.equippedWeapon.bleed) {
+                                    applyBleed(z, z.equippedWeapon.damage * z.equippedWeapon.bleed);
+                                }
+                            }
+                            z.attackTimer = gameTime + 500; 
+                        }
+                    } else if (z.attackState === 'strike') {
+                        // --- MODIFIED: Strike animation for weapon ---
+                        if (z.weaponMesh) {
+                            if (z.equippedWeapon.type === 'spear') z.weaponMesh.position.z = -0.5; // Thrust
+                            else z.weaponMesh.rotation.x = Math.PI / 2 + 0.3; // Swing forward
+                        } else {
+                            if(z.mesh.getObjectByName('leftArm')) z.mesh.getObjectByName('leftArm').rotation.x = 0;
+                            if(z.mesh.getObjectByName('rightArm')) z.mesh.getObjectByName('rightArm').rotation.x = 0;
+                        }
+
+                        if (gameTime > z.attackTimer) {
+                            z.attackState = 'chase';
+                            // --- MODIFIED: Reset spear position ---
+                            if (z.weaponMesh && z.equippedWeapon.type === 'spear') z.weaponMesh.position.z = 0.2;
+                        }
+                    }
+                } else { z.body.velocity.set(0, z.body.velocity.y, 0); }
+            }
+            updateProjectiles(delta);
+            updatePersistentEffects(delta);
+            updateSkillCooldowns();
+            updateActiveUltimates(delta);
+            renderer.render(scene, camera);
+            lastTime = time;
+        }
+
+        function handleKeyPress(key) {
+            const getOwned = (type) => Object.keys(player.ownedItems).filter(k => weapons[k].type === type);
+            if (key === '1') {
+                 const list = [...getOwned('sword'), ...getOwned('katana'), ...getOwned('spear')];
+                 if (list.length > 0) switchWeapon(list[list.length - 1]); else switchWeapon('fist_common');
+            }
+            if (key === '2') {
+                 const list = getOwned('bow');
+                 if (list.length > 0) switchWeapon(list[list.length - 1]);
+            }
+            if (key === '3') {
+                 const list = getOwned('gun');
+                 if (list.length > 0) switchWeapon(list[list.length - 1]);
+            }
+
+            if (key==='q') useSkill(0); if (key==='e') useSkill(1); if (key==='r') useSkill(2); if (key==='f') useSkill(3);
+            if (key==='z') useUltimate();
+            if (key==='b') openShop();
+            if (key==='p') toggleCameraView();
+        }
+        function toggleCameraView() {
+            player.isFirstPerson = !player.isFirstPerson;
+            updateCameraPosition();
+        }
+        function updateCameraPosition() {
+            if (player.isFirstPerson) {
+                camera.position.set(0, 0, 0.2); // Moving slightly forward to avoid seeing inside own head
+                if (player.mesh && player.mesh.getObjectByName('head')) {
+                    player.mesh.getObjectByName('head').visible = false; // Hide head in FPV
+                }
+            } else {
+                camera.position.set(0, 1.5, 4); // Standard TPV position
+                if (player.mesh && player.mesh.getObjectByName('head')) {
+                    player.mesh.getObjectByName('head').visible = true; // Show head in TPV
+                }
+            }
+        }
+
+        function handlePlayerMovement(delta) {
+            const pg = player.mesh.parent; player.isMoving = false;
+            
+            if (mouse.y !== 0) {
+                 player.cameraPivot.rotation.x -= mouse.y * 0.002;
+                 player.cameraPivot.rotation.x = Math.max(-Math.PI/3, Math.min(Math.PI/3, player.cameraPivot.rotation.x));
+                 mouse.y = 0;
+            }
+            if (mouse.x !== 0) { 
+                 pg.rotation.y -= mouse.x * 0.002; 
+                 mouse.x=0; 
+            }
+            player.body.quaternion.setFromAxisAngle(new CANNON.Vec3(0,1,0), pg.rotation.y);
+
+            const md = new THREE.Vector3();
+            if (keysPressed['w']) { md.z-=1; player.isMoving=true; } if (keysPressed['s']) { md.z+=1; player.isMoving=true; }
+            if (keysPressed['a']) { md.x-=1; player.isMoving=true; } if (keysPressed['d']) { md.x+=1; player.isMoving=true; }
+            
+            if (gameTime < player.dashUntil) {
+                if (player.isPhaseShifting) {
+                     for (let i=0; i<zombies.length; i++) {
+                         if (player.body.position.distanceTo(zombies[i].body.position) < 1.5) damageZombie(zombies[i], 100); 
+                     }
+                }
+                return;
+            }
+            if (player.isMoving) { 
+                md.normalize(); 
+                md.applyQuaternion(pg.quaternion); 
+                player.body.velocity.x = md.x*18; player.body.velocity.z = md.z*18; 
+            }
+            else { player.body.velocity.x = 0; player.body.velocity.z = 0; }
+        }
+        function updatePlayerAnimations(t, dt) {
+            const torso=player.mesh.getObjectByName('torso'), head=player.mesh.getObjectByName('head'), lArm=player.mesh.getObjectByName('leftArm'), rArm=player.mesh.getObjectByName('rightArm'), lLeg=player.mesh.getObjectByName('leftLeg'), rLeg=player.mesh.getObjectByName('rightLeg');
+            torso.rotation.x=0; torso.position.y=1.25; head.rotation.x=0; lArm.rotation.x=0; lArm.rotation.z=0; rArm.rotation.x=0; rArm.rotation.z=0; lLeg.rotation.x=0; rLeg.rotation.x=0;
+            torso.rotation.y=0; 
+
+            head.rotation.x = player.cameraPivot.rotation.x * 0.5;
+
+            if (player.ultimateAnim.active) {
+                player.ultimateAnim.time += dt; const p = Math.min(player.ultimateAnim.time/player.ultimateAnim.duration, 1.0);
+                switch(player.ultimateAnim.type) {
+                    case 'voidDash':
+                        if(p<0.2) player.mesh.scale.set(1-p*4, 1+p*2, 1-p*4); 
+                        else if(p>0.8) player.mesh.scale.set(1-(1-p)*4, 1+(1-p)*2, 1-(1-p)*4);
+                        else player.mesh.visible = false; 
+                        if (p>0.8) player.mesh.visible = true;
+                        break;
+                    case 'resurrection':
+                        player.mesh.position.y = -1.0 + Math.sin(p * Math.PI)*2; 
+                        lArm.rotation.z = Math.PI - 0.3; rArm.rotation.z = -(Math.PI - 0.3); 
+                        head.rotation.x = -0.5;
+                        break;
+                    case 'meteorShower':
+                        lArm.rotation.x = -Math.PI + 0.5; rArm.rotation.x = -Math.PI + 0.5; 
+                        head.rotation.x = -0.8; 
+                        break;
+                    case 'blizzard':
+                         player.mesh.position.y = -1.0 + 0.5; 
+                         player.mesh.rotation.y += dt * 5; 
+                         lArm.rotation.z = Math.PI/2; rArm.rotation.z = -Math.PI/2; 
+                         break;
+                    case 'undyingRage':
+                         if(p<0.3) { 
+                             torso.rotation.x = -0.5; head.rotation.x = -0.5;
+                             lArm.rotation.x = -2; rArm.rotation.x = -2;
+                             lArm.rotation.z = 0.5; rArm.rotation.z = -0.5;
+                         }
+                         break;
+                }
+                if (p>=1.0) { 
+                     player.ultimateAnim.active=false; 
+                     player.mesh.position.y=-1.0; 
+                     player.mesh.scale.set(1,1,1); 
+                     player.mesh.rotation.y = 0;
+                     player.mesh.visible = true;
+                }
+                return; 
+            }
+
+            if (player.skillAnim.active) {
+                player.skillAnim.time += dt; const p = Math.min(player.skillAnim.time/player.skillAnim.duration, 1.0);
+                switch(player.skillAnim.type) {
+                    case 'dash': torso.rotation.x=0.5; head.rotation.x=-0.3; lArm.rotation.x=1.0; rArm.rotation.x=1.0; lLeg.rotation.x=-0.8; rLeg.rotation.x=0.5; break;
+                    case 'heal': lArm.rotation.z=Math.PI-0.5; rArm.rotation.z=-(Math.PI-0.5); head.rotation.x=-0.5; break;
+                    case 'stomp': case 'iceNova': if(p<0.5){ player.mesh.position.y=THREE.MathUtils.lerp(0,1.5,p*2); lLeg.rotation.x=-0.5; rLeg.rotation.x=-0.5; lArm.rotation.x=-2.5; rArm.rotation.x=-2.5; } else { player.mesh.position.y=THREE.MathUtils.lerp(1.5,0,(p-0.5)*2); torso.rotation.x=0.5; lArm.rotation.x=-0.5; rArm.rotation.x=-0.5; } break;
+                    case 'fireball': rArm.rotation.x=-Math.PI/2 + player.cameraPivot.rotation.x; torso.rotation.y=-0.5; break;
+                }
+                if (p>=1.0 && player.skillAnim.type!=='dash') { player.skillAnim.active=false; player.mesh.position.y=-1.0; torso.rotation.set(0,0,0); }
+                if (player.skillAnim.type==='dash' && gameTime > player.dashUntil) { player.skillAnim.active=false; torso.rotation.x=0; head.rotation.x=0; }
+                return;
+            }
+            if (player.isMoving) { const a = Math.sin(t*15)*0.5; lLeg.rotation.x=a; rLeg.rotation.x=-a; if(!player.attackState.active){ lArm.rotation.x=-a; rArm.rotation.x=a; } }
+            
+            const wType = weapons[player.currentWeapon].type;
+            if (player.attackState.active && player.weaponMesh) {
+                player.attackState.time += dt; const p = Math.min(player.attackState.time/player.attackState.duration, 1.0);
+                
+                if (wType === 'sword' || wType === 'katana') {
+                    const bx=-Math.PI/2-0.2, by=-0.3, bz=0.4;
+                    if(p<0.2) { const pp=p/0.2; player.weaponMesh.rotation.set(THREE.MathUtils.lerp(bx, -Math.PI/2+0.5, pp), THREE.MathUtils.lerp(by, -1.2, pp), THREE.MathUtils.lerp(bz, 0.8, pp)); }
+                    else if(p<0.6) { const pp=(p-0.2)/0.4, ep=pp*(2-pp); player.weaponMesh.rotation.set(THREE.MathUtils.lerp(-Math.PI/2+0.5, -Math.PI/2-0.5, ep), THREE.MathUtils.lerp(-1.2, 1.5, ep), THREE.MathUtils.lerp(0.8, -0.5, ep)); }
+                    else { const pp=(p-0.6)/0.4; player.weaponMesh.rotation.set(THREE.MathUtils.lerp(-Math.PI/2-0.5, bx, pp), THREE.MathUtils.lerp(1.5, by, pp), THREE.MathUtils.lerp(-0.5, bz, pp)); }
+                } else if (wType === 'spear') {
+                     player.weaponMesh.position.z = -0.5 - Math.sin(p * Math.PI) * 1.0; 
+                } else if (wType === 'fist') {
+                    player.weaponMesh.position.z = player.attackState.startPos.z + (p<0.3 ? THREE.MathUtils.lerp(0, -0.8, p/0.3) : THREE.MathUtils.lerp(-0.8, 0, (p-0.3)/0.7));
+                } else if (wType === 'bow' || wType === 'gun') {
+                     const pitch = player.cameraPivot.rotation.x;
+                     lArm.rotation.x = -Math.PI/2 + pitch; rArm.rotation.x = -Math.PI/2 + pitch;
+                     player.weaponMesh.rotation.x = pitch + (wType==='gun' ? -Math.sin(p*Math.PI)*0.2 : 0); 
+                }
+                if (p>=1.0) { 
+                    player.attackState.active=false; 
+                    if(wType==='sword' || wType==='katana') player.weaponMesh.rotation.set(-Math.PI/2-0.2, -0.3, 0.4); 
+                    if(wType==='fist' || wType==='spear') player.weaponMesh.position.copy(player.attackState.startPos); 
+                }
+            } else if (wType === 'bow' || wType === 'gun') {
+                 const pitch = player.cameraPivot.rotation.x;
+                 lArm.rotation.x = -Math.PI/2 + pitch; rArm.rotation.x = -Math.PI/2 + pitch;
+                 if(wType==='bow') player.weaponMesh.rotation.set(pitch, 0, Math.PI/2);
+                 else player.weaponMesh.rotation.set(pitch, 0, 0);
+            }
+        }
+        function switchWeapon(name) {
+            if (!weapons[name] || player.currentWeapon===name && player.weaponMesh) return;
+            player.currentWeapon = name; const wd = weapons[name], pg = player.mesh.parent;
+            if (player.weaponMesh) pg.remove(player.weaponMesh);
+            player.weaponMesh = wd.createMesh(); weaponNameEl.innerText = wd.name;
+            
+            reticleEl.style.display = 'block';
+
+            if (wd.type === 'sword' || wd.type === 'katana') { 
+                player.weaponMesh.position.set(0.7, 0.1, -0.4); 
+                player.weaponMesh.rotation.set(-Math.PI/2-0.2, -0.3, 0.4); 
+            } else if (wd.type === 'spear') {
+                 player.weaponMesh.position.set(0.5, 0, -0.5);
+                 player.weaponMesh.rotation.set(-Math.PI/2, 0, 0);
+            } else if (wd.type === 'bow') { 
+                player.weaponMesh.position.set(0, 1.3, 0.2); player.weaponMesh.rotation.set(0,0,Math.PI/2); 
+            } else if (wd.type === 'gun') {
+                 player.weaponMesh.position.set(0.3, 1.2, 0.3); player.weaponMesh.rotation.set(0,0,0);
+            } else { 
+                player.weaponMesh.position.set(0, 0.5, -0.75); 
+                player.weaponMesh.rotation.set(0, 0, 0); 
+            }
+            camera.rotation.set(0,0,0); // Reset camera local rotation from any previous weapon state if needed
+            updateCameraPosition(); // Apply current view preference
+            pg.add(player.weaponMesh);
+        }
+        function lockChangeAlert() {
+            const menu = skillChoiceUI.style.display==='block' || skillReplaceUI.style.display==='block' || messageBox.style.display==='block' || shopUI.style.display==='block' || cheatConsole.style.display==='block';
+            if (document.pointerLockElement===canvas) { 
+                if(!menu) { 
+                    document.getElementById('game-info').style.display='none'; 
+                    reticleEl.style.display = 'block'; 
+                    gamePaused=false; lastTime = performance.now(); 
+                } 
+            }
+            else { 
+                if(!menu && !player.isDead) { 
+                    document.getElementById('game-info').style.display='block'; 
+                    reticleEl.style.display = 'none'; gamePaused=true; 
+                } 
+            }
+        }
+
+        function attack() {
+            if (player.attackCooldown || player.attackState.active) return;
+            const wd = weapons[player.currentWeapon]; player.attackCooldown=true;
+            player.attackState.active=true; player.attackState.time=0; player.attackState.duration=(wd.cooldown/1000)/player.attackSpeedMultiplier;
+            player.attackState.startRot=player.weaponMesh.rotation.y; player.attackState.startPos.copy(player.weaponMesh.position);
+            
+            if (wd.type === 'bow' || wd.type === 'gun') {
+                createProjectileWeapon(wd);
+            } else { 
+                const pg=player.mesh.parent, pos=pg.position.clone(), fwd=new THREE.Vector3(0,0,-1).applyQuaternion(pg.quaternion); pos.addScaledVector(fwd, wd.range/2);
+                let hitCount = 0;
+                for (let i=zombies.length-1; i>=0; i--) {
+                    const z = zombies[i];
+                    if (!z || !z.body) continue;
+                    
+                    if (wd.type === 'spear' && hitCount >= wd.pierce) continue;
+
+                    const hitDist = wd.range + (z.isBoss ? z.rank.scale * 0.5 : 0);
+                    if (pos.distanceTo(z.body.position) < hitDist) {
+                        if (wd.type === 'spear') {
+                             const toZ = z.body.position.vsub(player.body.position); toZ.normalize();
+                             if (fwd.dot(new THREE.Vector3(toZ.x, 0, toZ.z)) < 0.9) continue; 
+                        }
+
+                        damageZombie(z, wd.damage, wd);
+                        hitCount++;
+                        
+                        if (wd.bleed) applyBleed(z, wd.damage * wd.bleed);
+                        if (wd.cleave) {
+                             for(let j=zombies.length-1; j>=0; j--) {
+                                 if(i===j) continue;
+                                 const z2 = zombies[j];
+                                 if (z2 && z2.body && z.body.position.distanceTo(z2.body.position) < 3.0) {
+                                      damageZombie(z2, wd.damage * wd.cleave, wd); 
+                                 }
+                             }
+                        }
+
+                        if (z.health > 0) {
+                            const kb=new CANNON.Vec3(); z.body.position.vsub(player.body.position, kb); kb.y=0.2; kb.normalize();
+                            const kbForce = (wd.type==='spear'?40 : 25) * (z.isBoss ? 0.1 : 1.0);
+                            z.body.applyImpulse(kb.scale(kbForce), z.body.position);
+                        }
+                    }
+                }
+            }
+            setTimeout(() => { player.attackCooldown=false; }, wd.cooldown/player.attackSpeedMultiplier);
+        }
+        function createProjectileWeapon(wd) {
+             const isGun = wd.type === 'gun';
+             const geo = isGun ? new THREE.SphereGeometry(0.1, 8, 8) : new THREE.CylinderGeometry(0.02, 0.02, 0.8, 8);
+             const mat = new THREE.MeshBasicMaterial({color: isGun ? 0xffff00 : 0xeeeeee});
+             const mesh = new THREE.Mesh(geo,mat); 
+             
+             const dir = new THREE.Vector3(0,0,-1).applyQuaternion(camera.getWorldQuaternion(new THREE.Quaternion()));
+             const start = new THREE.Vector3(); camera.getWorldPosition(start); start.addScaledVector(dir, 0.5); 
+
+             mesh.position.copy(start);
+             if (!isGun) {
+                 mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
+                 mesh.rotateX(Math.PI/2);
+             }
+
+             scene.add(mesh);
+             projectiles.push({ mesh:mesh, dir:dir, speed: wd.projSpeed, damage:wd.damage, life:150, isArrow: !isGun, isBullet: isGun, weapon: wd });
+        }
+        function applyBleed(z, totalDamage) {
+             if (!z.bleed) z.bleed = { damagePerTick: totalDamage / 6, ticksLeft: 6, timer: 0 }; 
+             else { z.bleed.damagePerTick += totalDamage / 6; z.bleed.ticksLeft = 6; }
+        }
+        function damageZombie(z, amt, weapon) {
+            if (!z || z.health <= 0) return;
+            
+            if (weapon && weapon.crit && Math.random() < weapon.crit) {
+                 amt *= 3; 
+                 createParticles(z.body.position, 0xff0000, 20); 
+            }
+
+            if (z.isBrittle) amt *= 2; 
+            z.health -= amt;
+            
+            if (z.isBoss) {
+                bossHealthBar.style.width = Math.max(0, (z.health / z.maxHealth) * 100) + '%';
+            }
+
+            if (player.hasBloodlust) { 
+                 player.health = Math.min(player.maxHealth, player.health + (amt * 0.2)); 
+                 updateHUD();
+            }
+            if (z.mesh && !z.isFrozen) { 
+                setEntityColor(z.mesh, 0xffffff); 
+                setTimeout(() => { if(z.mesh && !z.isFrozen && z.health>0) setEntityColor(z.mesh, z.isBoss ? z.rank.color : (z.isGolden ? 0xffd700 : 0x44cc44)); }, 100); 
+            }
+            if (z.health <= 0) killZombie(z, zombies.indexOf(z));
+        }
+        function takeDamage(amt, sourceZombie) {
+            if (player.isDead || player.isPhaseShifting || player.isUndying) return; 
+            
+            amt *= (1.0 - player.damageReduction); 
+            
+            player.health -= amt; if (player.health<0) player.health=0;
+            setEntityColor(player.mesh, 0xff0000); setTimeout(() => { if(!player.isDead) setEntityColor(player.mesh, 0x0077ff); }, 100);
+            updateHUD(); 
+
+            if (sourceZombie && player.currentArmor && armors[player.currentArmor].thorns) {
+                 damageZombie(sourceZombie, amt * armors[player.currentArmor].thorns / (1.0 - player.damageReduction)); 
+            }
+
+            if (player.health<=0) die();
+        }
+        function setEntityColor(g, c) { if (!g || !g.children) return; g.children.forEach(p => { if(p.geometry && p.geometry.parameters.width>0.15) p.material.color.set(c); }); }
+        function die() { player.isDead=true; gamePaused=true; messageBox.style.display='block'; document.exitPointerLock(); }
+        function killZombie(z, idx) { 
+            createParticles(z.group.position, z.isBoss ? z.rank.color : (z.isGolden ? 0xffd700 : 0x00ff00), z.isBoss ? 100 : 20); 
+            scene.remove(z.group); world.removeBody(z.body); 
+            zombies.splice(idx, 1); 
+            
+            if (z.isBoss) {
+                bossActive = false;
+                currentBoss = null;
+                bossHud.style.display = 'none';
+                setSpawnInterval(); 
+                player.coins += z.rank.coins;
+            } else if (z.isGolden) {
+                player.coins += 500;
+            } else {
+                player.coins += 10;
+            }
+
+            killCount++; killCountEl.innerText=killCount; gainXP(z.xpValue); updateHUD();
+        }
+        
+        function createProjectile(skill, level) {
+            const pg=player.mesh.parent, geo=new THREE.SphereGeometry(0.3,8,8), mat=new THREE.MeshBasicMaterial({color:0xff4500}), mesh=new THREE.Mesh(geo,mat);
+            const scale = 1.0 + (level * 0.2); 
+            mesh.scale.set(scale, scale, scale);
+            
+            const dir = new THREE.Vector3(0,0,-1).applyQuaternion(camera.getWorldQuaternion(new THREE.Quaternion()));
+            const start = new THREE.Vector3(); player.cameraPivot.getWorldPosition(start); start.addScaledVector(dir, 2.0);
+
+            mesh.position.copy(start); scene.add(mesh);
+            projectiles.push({ mesh:mesh, dir:dir, speed:15+(level*1), damage:100+(level*30), life:100, isInferno: level>=5 });
+        }
+        function updateProjectiles(dt) {
+            for (let i=projectiles.length-1; i>=0; i--) {
+                const p=projectiles[i], mv=p.dir.clone().multiplyScalar(p.speed*dt); p.mesh.position.add(mv); p.life--;
+                
+                if (p.isSuperMeteor) {
+                     if (p.mesh.position.y <= 0) { 
+                         createParticles(p.mesh.position, 0xff4500, 300); 
+                         for(let j=zombies.length-1; j>=0; j--) {
+                             if(zombies[j] && zombies[j].body && p.mesh.position.distanceTo(zombies[j].body.position) < 15) {
+                                 damageZombie(zombies[j], 2000);
+                             }
+                         }
+                         createVolcano(p.mesh.position);
+                         scene.remove(p.mesh); projectiles.splice(i, 1);
+                         continue;
+                     }
+                }
+
+                let hit=false;
+                if (!p.isSuperMeteor && !p.isVolcanoMeteor) {
+                    for (let j=zombies.length-1; j>=0; j--) {
+                        const z = zombies[j];
+                        if (!z || !z.body) continue;
+                        const hitRad = (p.isArrow || p.isBullet ? 1.0 : 2.0) + (z.isBoss ? z.rank.scale * 0.5 : 0);
+                        if (p.mesh.position.distanceTo(z.body.position) < hitRad) {
+                            damageZombie(z, p.damage, p.weapon);
+                            hit=true;
+                            if (p.weapon && p.weapon.ricochet && p.weapon.ricochet > 0) {
+                                 p.weapon.ricochet--;
+                                 let closest = null, minDist = 10;
+                                 for(let k=0; k<zombies.length; k++) {
+                                      if(zombies[k] === z) continue;
+                                      const d = p.mesh.position.distanceTo(zombies[k].body.position);
+                                      if(d < minDist) { minDist = d; closest = zombies[k]; }
+                                 }
+                                 if (closest) {
+                                      const closestPos = new THREE.Vector3(closest.body.position.x, closest.body.position.y, closest.body.position.z);
+                                      p.dir = closestPos.sub(p.mesh.position).normalize();
+                                      p.life += 20; 
+                                      hit = false; 
+                                 }
+                            }
+                            break; 
+                        }
+                    }
+                }
+                
+                if (p.isVolcanoMeteor && p.mesh.position.y <= 0) {
+                    createParticles(p.mesh.position, 0xff4500, 50);
+                    for(let j=zombies.length-1; j>=0; j--) {
+                         if(zombies[j] && zombies[j].body && p.mesh.position.distanceTo(zombies[j].body.position) < 5) {
+                             damageZombie(zombies[j], 500);
+                         }
+                     }
+                    hit = true;
+                }
+
+                if (hit || p.life<=0) {
+                    if (!p.isArrow && !p.isBullet && !p.isVolcanoMeteor) createParticles(p.mesh.position, 0xff4500, 30);
+                    if (hit && p.isInferno) createFireCircle(p.mesh.position); 
+                    scene.remove(p.mesh); projectiles.splice(i, 1);
+                }
+            }
+        }
+        function createFireCircle(pos) {
+            const g=new THREE.RingGeometry(0.1, 5, 32), m=new THREE.MeshBasicMaterial({ color: 0xff5500, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
+            const mesh=new THREE.Mesh(g, m); mesh.rotation.x = -Math.PI/2; mesh.position.copy(pos); mesh.position.y=0.1; scene.add(mesh);
+            persistentEffects.push({ type:'fireCircle', mesh:mesh, position:pos, radius:5, duration:5000, damagePerTick:50, tickTimer:0 });
+        }
+        function createVolcano(pos) {
+             const g = new THREE.ConeGeometry(3, 4, 16), m = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9 });
+             const volcano = new THREE.Mesh(g, m); volcano.position.copy(pos); volcano.position.y = 2; scene.add(volcano);
+             persistentEffects.push({ type:'volcano', mesh:volcano, position:pos, duration:10000, nextErupt: 0 });
+        }
+
+        function updatePersistentEffects(dt) {
+            for(let i=persistentEffects.length-1; i>=0; i--) {
+                const e=persistentEffects[i]; e.duration -= dt*1000;
+                if(e.type==='fireCircle') {
+                    e.tickTimer+=dt; if(e.tickTimer>0.5) { e.tickTimer=0; for(let j=0; j<zombies.length; j++) if(zombies[j].body.position.distanceTo(e.position)<e.radius) damageZombie(zombies[j], e.damagePerTick); }
+                }
+                if (e.type === 'blizzardAura') {
+                     e.mesh.position.copy(player.body.position); e.mesh.position.y = 0.1;
+                     e.mesh.rotation.z += dt * 2; 
+                }
+                if (e.type === 'volcano' && gameTime > e.nextErupt) {
+                     e.nextErupt = gameTime + 500; 
+                     const startPos = e.position.clone().add(new THREE.Vector3(0, 4, 0));
+                     const targetPos = e.position.clone().add(new THREE.Vector3((Math.random()-0.5)*20, 0, (Math.random()-0.5)*20));
+                     const skyPos = targetPos.clone().add(new THREE.Vector3(0, 30, 0));
+                     const fallDir = new THREE.Vector3(0, -1, 0);
+                     const geo = new THREE.SphereGeometry(0.6, 8, 8), mat = new THREE.MeshStandardMaterial({ color: 0xff4500, emissive: 0xff2200 });
+                     const vMeteor = new THREE.Mesh(geo, mat); vMeteor.position.copy(skyPos); scene.add(vMeteor);
+                     projectiles.push({ mesh:vMeteor, dir:fallDir, speed:30, damage:500, life:200, isVolcanoMeteor:true });
+                }
+                if(e.duration<=0) { scene.remove(e.mesh); persistentEffects.splice(i,1); }
+            }
+        }
+
+        function spawnBoss(rank) {
+            if (bossActive) return;
+            bossActive = true;
+            clearInterval(spawnIntervalId); 
+
+            const scale = rank.scale;
+            const b = new CANNON.Body({ mass: 500 * scale, material: zombieMaterial, fixedRotation: true, linearDamping: 0.8 });
+            b.addShape(new CANNON.Box(new CANNON.Vec3(0.4 * scale, 1 * scale, 0.4 * scale)));
+            b.position.set(0, 5 * scale, -30); 
+            world.addBody(b);
+
+            const zm = createHumanoidMesh(rank.color);
+            zm.scale.set(scale, scale, scale);
+            const zg = new THREE.Group(); zg.add(zm); scene.add(zg);
+
+            const boss = { 
+                group: zg, mesh: zm, body: b, 
+                health: rank.hp, maxHealth: rank.hp, xpValue: rank.xp, 
+                baseSpeed: 2 + (rank.level / 10), 
+                isFrozen: false, freezeUntil: 0, isBrittle: false,
+                isBoss: true, rank: rank,
+                attackState: 'chase', attackTimer: 0,
+                equippedWeapon: null, weaponMesh: null // --- Bosses don't get weapons (for now) ---
+            };
+            zombies.push(boss);
+            currentBoss = boss;
+
+            bossNameEl.innerText = "BOSS " + rank.name;
+            bossNameEl.style.color = '#' + rank.color.toString(16).padStart(6, '0');
+            bossHealthBar.style.width = '100%';
+            bossHealthBar.style.backgroundColor = '#' + rank.color.toString(16).padStart(6, '0');
+            bossHud.style.display = 'block';
+        }
+
+        function spawnZombie() {
+            if (player.isDead || gamePaused || zombies.length>=100 || bossActive) return;
+            const b = new CANNON.Body({ mass: 60, material: zombieMaterial, fixedRotation: true, linearDamping: 0.5 });
+            b.addShape(new CANNON.Box(new CANNON.Vec3(0.4, 1, 0.4)));
+            
+            // Circular spawn logic for round arena
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 20 + Math.random() * 45; // Spawn between 20 and 65 units from center
+            const sx = Math.sin(angle) * radius;
+            const sz = Math.cos(angle) * radius;
+            b.position.set(sx, 5, sz); 
+            world.addBody(b);
+
+            let isGolden = false;
+            if (player.level >= 5 && Math.random() < 0.10) {
+                isGolden = true;
+            }
+
+            const color = isGolden ? 0xffd700 : 0x44cc44; 
+            const zm = createHumanoidMesh(color), zg = new THREE.Group(); zg.add(zm); scene.add(zg);
+            
+            // --- NEW: Zombie Weapon Logic ---
+            let equippedWeapon = null;
+            let xpValue = isGolden ? 2500 : 50;
+            let weaponMesh = null;
+            
+            // "percentage decreasing with every rank up"
+            const baseWeaponChance = 0.7; // Start at 70%
+            const weaponChance = baseWeaponChance * Math.pow(0.97, player.level); // Decreases by 3% per level
+
+            if (!isGolden && Math.random() < weaponChance) {
+                // Build weapon pool based on player level (quality increases)
+                const zombieWeaponPool = [];
+                if (player.level >= 1) zombieWeaponPool.push('sword_common');
+                if (player.level >= 5) zombieWeaponPool.push('katana_uncommon');
+                if (player.level >= 8) zombieWeaponPool.push('sword_rare', 'spear_rare');
+                if (player.level >= 12) zombieWeaponPool.push('katana_epic');
+                if (player.level >= 18) zombieWeaponPool.push('sword_legendary', 'spear_legendary');
+                if (player.level >= 25) zombieWeaponPool.push('katana_mythic', 'sword_mythic');
+                
+                if (zombieWeaponPool.length > 0) {
+                    const weaponId = zombieWeaponPool[Math.floor(Math.random() * zombieWeaponPool.length)];
+                    equippedWeapon = weapons[weaponId];
+                    xpValue += rankXpBonus[equippedWeapon.rank]; // Add bonus XP
+                    
+                    weaponMesh = equippedWeapon.createMesh();
+                    weaponMesh.scale.set(0.7, 0.7, 0.7); // Make it a bit smaller
+                    
+                    const rArm = zm.getObjectByName('rightArm');
+                    if (rArm) {
+                        rArm.add(weaponMesh);
+                        // Position weapon in hand
+                        weaponMesh.position.set(0, -0.6, 0.2); 
+                        weaponMesh.rotation.set(Math.PI / 2 + 0.3, 0, 0.2);
+                    } else {
+                        weaponMesh = null; // Safety cleanup
+                        equippedWeapon = null;
+                    }
+                }
+            }
+            // --- End of new logic ---
+
+            zombies.push({ 
+                group:zg, mesh:zm, body:b, 
+                health: isGolden ? 150 : 100, 
+                maxHealth: isGolden ? 150 : 100, 
+                xpValue: xpValue, // Use the (potentially modified) xpValue
+                baseSpeed: isGolden ? 4 + (Math.random()*2) : 2+(Math.random()*2), 
+                isFrozen:false, freezeUntil:0, isBrittle: false, isBoss: false, isGolden: isGolden,
+                attackState: 'chase', attackTimer: 0,
+                equippedWeapon: equippedWeapon, weaponMesh: weaponMesh // --- NEW: Add properties to zombie object ---
+            });
+        }
+        function setSpawnInterval() { if (spawnIntervalId) clearInterval(spawnIntervalId); if (currentSpawnDelay<100) currentSpawnDelay=100; spawnIntervalId=setInterval(spawnZombie, currentSpawnDelay); }
+        function gainXP(amt) { 
+            player.xp+=amt; player.ultimateCharge+=amt/2; 
+            if(player.ultimateCharge>player.maxUltimateCharge) player.ultimateCharge=player.maxUltimateCharge; 
+            if(player.xp>=player.xpToNextLevel) levelUp(); 
+            updateHUD(); 
+        }
+        function levelUp() {
+            player.level++; player.xp-=player.xpToNextLevel; player.xpToNextLevel=Math.floor(player.xpToNextLevel*1.5);
+            currentSpawnDelay/=2; setSpawnInterval(); player.health=player.maxHealth;
+            levelUpMessage.style.display='block'; setTimeout(() => { levelUpMessage.style.display='none'; }, 2000);
+            
+            for(let i=zombies.length-1; i>=0; i--) { 
+                if (!zombies[i].isBoss) {
+                    scene.remove(zombies[i].group); world.removeBody(zombies[i].body); zombies.splice(i, 1);
+                }
+            }
+
+            let bossSpawned = false;
+            for (let i = BOSS_RANKS.length - 1; i >= 0; i--) {
+                if (player.level === BOSS_RANKS[i].level) {
+                    spawnBoss(BOSS_RANKS[i]);
+                    bossSpawned = true;
+                    break;
+                }
+            }
+            if (!bossSpawned && player.level > 30 && player.level % 5 === 0) {
+                 spawnBoss(BOSS_RANKS[BOSS_RANKS.length - 1]);
+            }
+
+            showSkillChoiceScreen(); updateHUD();
+        }
+        function showSkillChoiceScreen() {
+            gamePaused=true; document.exitPointerLock();
+            const ids=Object.keys(allSkills), choices=[], available=[...ids];
+            for (let i=available.length-1; i>=0; i--) { 
+                const id = available[i];
+                if (player.skillLevels[id] >= 10) available.splice(i, 1); 
+            }
+
+            for (let i=available.length-1; i>0; i--) { const j=Math.floor(Math.random()*(i+1)); [available[i], available[j]] = [available[j], available[i]]; }
+            while(choices.length<3 && available.length>0) choices.push(available.pop());
+            
+            while(choices.length < 3) {
+                 choices.push('coins');
+            }
+
+            const cEl=document.getElementById('skill-choice-options'); cEl.innerHTML='';
+            choices.forEach(id => {
+                const d=document.createElement('div'); d.className='skill-choice-option';
+                if (id === 'coins') {
+                     d.innerHTML = `<h3>Bag of Coins</h3><p>Instantly gain 1000 coins.</p>`;
+                     d.onclick = () => { player.coins += 1000; updateHUD(); resumeGame(); };
+                } else {
+                    const s=allSkills[id], curLv=player.skillLevels[id]||0, nextLv=curLv+1, isMaster=nextLv%5===0;
+                    d.innerHTML=`<h3>${s.name} ${curLv>0?`(Lv.${nextLv})`:''}</h3>${curLv>0?'<span class="level-up-tag">UPGRADE</span>':''}${isMaster?`<span class="mastery-tag">MASTER UPGRADE!</span>`:''}<p>${s.description}</p>${isMaster?`<p class="mastery-tag">${s.mastery}</p>`:''}`;
+                    d.onclick=()=>chooseSkill(id);
+                }
+                cEl.appendChild(d);
+            });
+            skillChoiceUI.style.display='block';
+        }
+        function chooseSkill(id) {
+            if(player.equippedSkills.includes(id)) { player.skillLevels[id]++; resumeGame(); updateSkillHUD(); }
+            else {
+                const empty=player.equippedSkills.findIndex(s=>s===null);
+                if(empty!==-1) { equipSkill(id, empty); resumeGame(); }
+                else { pendingSkillReplacement=id; showSkillReplaceScreen(); }
+            }
+        }
+        function showSkillReplaceScreen() {
+            skillChoiceUI.style.display='none'; const cEl=document.getElementById('skill-replace-options'); cEl.innerHTML='';
+            player.equippedSkills.forEach((id, i) => {
+                const s=allSkills[id], lv=player.skillLevels[id];
+                const d=document.createElement('div'); d.className='skill-choice-option';
+                d.innerHTML=`<h3>[${['Q','E','R','F'][i]}] ${s.name} Lv.${lv}</h3><p>${s.description}</p>`;
+                d.onclick=()=>confirmReplaceSkill(i); cEl.appendChild(d);
+            });
+            skillReplaceUI.style.display='block';
+        }
+        function confirmReplaceSkill(i) { if(pendingSkillReplacement) { equipSkill(pendingSkillReplacement, i); pendingSkillReplacement=null; skillReplaceUI.style.display='none'; resumeGame(); } }
+        function cancelReplacement() { pendingSkillReplacement=null; skillReplaceUI.style.display='none'; skillChoiceUI.style.display='block'; }
+        function resumeGame() { skillChoiceUI.style.display='none'; skillReplaceUI.style.display='none'; shopUI.style.display='none'; cheatConsole.style.display='none'; gamePaused=false; if(!player.isDead) { try { canvas.requestPointerLock(); } catch(e) {} } }
+        function equipSkill(id, i) { player.equippedSkills[i]=id; if(!player.skillLevels[id]) player.skillLevels[id]=1; player.skillCooldowns[i]=0; skillSlotEls[i].classList.remove('cooldown'); updateSkillHUD(); }
+        function updateSkillHUD() {
+            for(let i=0; i<4; i++) {
+                const id=player.equippedSkills[i], el=skillSlotEls[i], nameEl=el.querySelector('.skill-name'), lvEl=el.querySelector('.skill-level');
+                if(id) { nameEl.innerText=allSkills[id].name; lvEl.innerText=`Lv.${player.skillLevels[id]}`; }
+                else { nameEl.innerText='-'; lvEl.innerText=''; }
+            }
+            const ultId=player.equippedUltimate, uEl=ultimateSlotEl, uName=uEl.querySelector('.skill-name');
+            uName.innerText = ultId ? ultimates[ultId].name : 'Ultimate';
+        }
+        function useSkill(i) {
+            const id=player.equippedSkills[i]; if(!id || player.skillCooldowns[i]>gameTime) return;
+            const s=allSkills[id], lv=player.skillLevels[id]||1, isMaster=lv>=5; let ok=false;
+            switch(s.id) {
+                case 'dash':
+                    const dd=new THREE.Vector3(0,0,-1).applyQuaternion(player.mesh.parent.quaternion);
+                    const dashSpeed = 120 + (lv * 15);
+                    player.body.velocity.x=dd.x*dashSpeed; player.body.velocity.z=dd.z*dashSpeed; player.body.velocity.y=Math.max(player.body.velocity.y,5);
+                    player.dashUntil=gameTime+200; player.skillAnim={active:true, type:'dash', time:0, duration:0.2};
+                    if (isMaster) player.isPhaseShifting = true; 
+                    setTimeout(() => { player.isPhaseShifting = false; }, 200);
+                    ok=true; break;
+                case 'heal':
+                    const amt = 25 + (lv*15); 
+                    if(player.health<player.maxHealth) {
+                        player.health=Math.min(player.maxHealth, player.health+amt); updateHUD(); 
+                        createParticles(player.body.position, 0x4CAF50, 30 + (lv * 10));
+                        player.skillAnim={active:true, type:'heal', time:0, duration:0.5};
+                        if (isMaster) { 
+                             createParticles(player.body.position, 0xffff00, 50); 
+                             for(let j=0; j<zombies.length; j++) { if(player.body.position.distanceTo(zombies[j].body.position) < 15) damageZombie(zombies[j], amt*2); }
+                        }
+                        ok=true;
+                    } break;
+                case 'stomp':
+                    player.skillAnim={active:true, type:'stomp', time:0, duration:0.4};
+                    setTimeout(() => {
+                        createParticles(player.body.position, 0xffa500, 50 + (lv * 15));
+                        const dmg = 50 + (lv*25), range = 8 + (lv*1); 
+                        const masterRange = isMaster ? range * 2 : range; 
+                        for(let j=zombies.length-1; j>=0; j--) {
+                            if(player.body.position.distanceTo(zombies[j].body.position) < masterRange) {
+                                damageZombie(zombies[j], dmg);
+                                const kb=new CANNON.Vec3(); zombies[j].body.position.vsub(player.body.position, kb); kb.y=1; kb.normalize();
+                                const kbForce = (zombies[j].isBoss ? 10 : 100); 
+                                zombies[j].body.applyImpulse(kb.scale(kbForce), zombies[j].body.position);
+                                if (isMaster) { zombies[j].isFrozen=true; zombies[j].freezeUntil=gameTime+3000; setEntityColor(zombies[j].mesh, 0xaaaa00); } 
+                            }
+                        }
+                    }, 200); ok=true; break;
+                case 'fireball':
+                    player.skillAnim={active:true, type:'fireball', time:0, duration:0.3};
+                    createProjectile(s, lv); ok=true; break;
+                case 'iceNova':
+                    player.skillAnim={active:true, type:'iceNova', time:0, duration:0.4};
+                    setTimeout(() => {
+                        createParticles(player.body.position, 0x00aaff, 50 + (lv * 15));
+                        const dur = 3000 + (lv*500); 
+                        for(let j=zombies.length-1; j>=0; j--) {
+                            if(player.body.position.distanceTo(zombies[j].body.position) < 10) {
+                                zombies[j].isFrozen=true; zombies[j].freezeUntil=gameTime+dur; setEntityColor(zombies[j].mesh, 0x00aaff);
+                                if (isMaster) zombies[j].isBrittle = true; 
+                            }
+                        }
+                    }, 200); ok=true; break;
+                case 'berserk':
+                    player.attackSpeedMultiplier=2.0; setEntityColor(player.mesh, 0xff0000); 
+                    createParticles(player.body.position, 0xff0000, 30 + (lv * 5));
+                    if (isMaster) player.hasBloodlust = true; 
+                    setTimeout(() => {
+                        player.attackSpeedMultiplier=1.0; player.hasBloodlust=false;
+                        if(!player.isDead) setEntityColor(player.mesh, 0x0077ff);
+                    }, 5000 + (lv*1000)); 
+                    ok=true; break;
+            }
+            if(ok) { player.skillCooldowns[i]=gameTime + (s.baseCooldown - (s.id==='dash'?lv*200:0)); skillSlotEls[i].classList.add('cooldown'); }
+        }
+        function useUltimate() {
+             const id = player.equippedUltimate;
+             if (!id || player.ultimateCooldown > gameTime) return;
+             
+             player.ultimateAnim = { active: true, type: id, time: 0, duration: (id==='blizzard' || id==='meteorShower') ? 2.0 : 1.0 };
+
+             let used = false;
+             switch(id) {
+                 case 'voidDash':
+                     player.isPhaseShifting = true; 
+                     setTimeout(() => {
+                         const dir = new THREE.Vector3(0,0,-1).applyQuaternion(player.mesh.parent.quaternion);
+                         player.body.velocity.x = dir.x * 150; 
+                         player.body.velocity.z = dir.z * 150;
+                         player.dashUntil = performance.now() + 300;
+                     }, 200);
+                     setTimeout(() => { 
+                         player.isPhaseShifting = false;
+                         player.body.velocity.x = 0; player.body.velocity.z = 0;
+                         createParticles(player.body.position, 0xa855f7, 500);
+                         for(let j=zombies.length-1; j>=0; j--) { 
+                             if(zombies[j] && zombies[j].body && player.body.position.distanceTo(zombies[j].body.position) < 20) damageZombie(zombies[j], 1500); 
+                         }
+                     }, 500);
+                     used = true; break;
+                 case 'resurrection':
+                     player.health = player.maxHealth; updateHUD();
+                     setTimeout(() => { 
+                          createParticles(player.body.position, 0xffff00, 1000);
+                          for(let i=zombies.length-1; i>=0; i--) { damageZombie(zombies[i], 800); } 
+                     }, 750);
+                     used = true; break;
+                 case 'earthquake':
+                     player.activeUltimates.push({ type: 'earthquake', endTime: gameTime + 10000, nextTick: 0 });
+                     used = true; break;
+                 case 'meteorShower':
+                     const raycaster = new THREE.Raycaster();
+                     raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+                     const intersects = raycaster.intersectObjects(scene.children, true);
+                     let targetPos = new THREE.Vector3(0, 0, -20).applyQuaternion(player.mesh.parent.quaternion).add(player.body.position);
+                     for (let i = 0; i < intersects.length; i++) {
+                         if (intersects[i].object.geometry instanceof THREE.PlaneGeometry) { // Ground
+                              targetPos = intersects[i].point; break;
+                         }
+                     }
+                     const startPos = targetPos.clone().add(new THREE.Vector3(0, 100, 0));
+                     const dir = targetPos.clone().sub(startPos).normalize();
+                     const geo = new THREE.SphereGeometry(3, 16, 16), mat = new THREE.MeshStandardMaterial({ color: 0xff4500, emissive: 0xff0000 });
+                     const mesh = new THREE.Mesh(geo, mat); mesh.position.copy(startPos); scene.add(mesh);
+                     projectiles.push({ mesh:mesh, dir:dir, speed:80, damage:0, life:200, isSuperMeteor:true }); // Damage handled on impact
+                     used = true; break;
+                 case 'blizzard':
+                     setTimeout(() => { 
+                         createParticles(player.body.position, 0x00aaff, 800);
+                         zombies.forEach(z => { z.isFrozen=true; z.freezeUntil=gameTime+8000; setEntityColor(z.mesh, 0x00aaff); });
+                         const aura = new THREE.Mesh(new THREE.RingGeometry(1, 15, 32), new THREE.MeshBasicMaterial({ color: 0x00aaff, side: THREE.DoubleSide, transparent: true, opacity: 0.3 }));
+                         aura.rotation.x = -Math.PI/2; scene.add(aura);
+                         persistentEffects.push({ type:'blizzardAura', mesh:aura, duration:8000 });
+                     }, 1500);
+                     used = true; break;
+                 case 'undyingRage':
+                     player.isUndying = true; player.attackSpeedMultiplier = 3.0; 
+                     player.mesh.scale.set(1.5, 1.5, 1.5); 
+                     setTimeout(() => { 
+                         player.isUndying = false; player.attackSpeedMultiplier = 1.0; 
+                         player.mesh.scale.set(1, 1, 1);
+                         if(!player.isDead) setEntityColor(player.mesh, 0x0077ff); 
+                     }, 10000);
+                     used = true; break;
+             }
+
+             if (used) {
+                 player.ultimateCooldown = gameTime + ultimates[id].cooldown;
+                 ultimateSlotEl.classList.add('cooldown');
+             }
+        }
+
+        function updateActiveUltimates(dt) {
+             for (let i=player.activeUltimates.length-1; i>=0; i--) {
+                  const ult = player.activeUltimates[i];
+                  if (gameTime > ult.endTime) { player.activeUltimates.splice(i, 1); continue; }
+                  if (ult.type === 'earthquake' && gameTime > ult.nextTick) {
+                       ult.nextTick = gameTime + 1000;
+                       createParticles(player.body.position, 0x8B4513, 150);
+                       player.ultimateAnim = { active: true, type: 'earthquakeSlam', time: 0, duration: 0.4 }; 
+                       for(let j=zombies.length-1; j>=0; j--) {
+                           const z = zombies[j];
+                           if(z && z.body && player.body.position.distanceTo(z.body.position) < 20) {
+                               damageZombie(z, 300);
+                               if (z.health > 0) { z.isFrozen = true; z.freezeUntil = gameTime + 800; }
+                           }
+                       }
+                  }
+             }
+             if (player.ultimateAnim.type === 'earthquakeSlam' && player.ultimateAnim.active) {
+                  const p = Math.min(player.ultimateAnim.time/player.ultimateAnim.duration, 1.0);
+                  const torso=player.mesh.getObjectByName('torso'), lArm=player.mesh.getObjectByName('leftArm'), rArm=player.mesh.getObjectByName('rightArm');
+                  if(p<0.5) { torso.rotation.x=0.5; lArm.rotation.x=-2.5; rArm.rotation.x=-2.5; } 
+                  else { torso.rotation.x=0.8; lArm.rotation.x=-0.5; rArm.rotation.x=-0.5; } 
+             }
+             if (player.isUndying) {
+                  if (Math.random() < 0.2) createParticles(player.body.position, 0xff0000, 10); 
+                  setEntityColor(player.mesh, Math.sin(gameTime/100)*0.5+0.5 > 0.5 ? 0xff0000 : 0xaa0000); 
+             }
+             
+             // Process Bleed DoTs
+             for (let i=zombies.length-1; i>=0; i--) {
+                  const z = zombies[i];
+                  if (z && z.bleed && z.bleed.ticksLeft > 0) {
+                       z.bleed.timer += dt;
+                       if (z.bleed.timer >= 0.5) { // Tick every 0.5s
+                            z.bleed.timer = 0; z.bleed.ticksLeft--;
+                            damageZombie(z, z.bleed.damagePerTick);
+                            createParticles(z.body.position, 0x880000, 5);
+                       }
+                  }
+             }
+        }
+
+        function updateSkillCooldowns() {
+            for(let i=0; i<4; i++) { if(player.skillCooldowns[i]>0 && gameTime>player.skillCooldowns[i]) { player.skillCooldowns[i]=0; skillSlotEls[i].classList.remove('cooldown'); } }
+            if (player.ultimateCooldown > 0 && gameTime > player.ultimateCooldown) { player.ultimateCooldown=0; ultimateSlotEl.classList.remove('cooldown'); }
+        }
+        function updateHUD() {
+            const hp=(player.health/player.maxHealth)*100; playerHealthBar.style.width=hp+'%'; playerHealthBar.style.backgroundColor=hp<30?'#f44336':hp<60?'#ffeb3b':'#4CAF50';
+            playerXpBar.style.width=((player.xp/player.xpToNextLevel)*100)+'%'; playerLevelEl.innerText=player.level;
+            ultimateBar.style.width=((player.ultimateCharge/player.maxUltimateCharge)*100)+'%';
+            coinCountEl.innerText = player.coins;
+        }
+        function createParticles(pos, col, count) {
+            const geo=new THREE.BufferGeometry(), verts=[]; for(let i=0; i<count; i++) verts.push(pos.x, pos.y+1, pos.z);
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(verts,3));
+            const mat=new THREE.PointsMaterial({color:col, size:0.3, transparent:true, opacity:1.0}), pts=new THREE.Points(geo,mat); scene.add(pts);
+            const vels=[]; for(let i=0; i<count; i++) vels.push({x:(Math.random()-0.5)*8, y:(Math.random()-0.5)*8+4, z:(Math.random()-0.5)*8});
+            let life=1.0; (function anim(){ life-=0.02; if(life<=0){ scene.remove(pts); return; } mat.opacity=life; const p=pts.geometry.attributes.position.array; for(let i=0; i<count; i++){ p[i*3]+=vels[i].x*0.016; p[i*3+1]+=vels[i].y*0.016; p[i*3+2]+=vels[i].z*0.016; vels[i].y-=0.2; } pts.geometry.attributes.position.needsUpdate=true; requestAnimationFrame(anim); })();
+        }
+        
+        // --- Shop Logic ---
+        function openShop() {
+             gamePaused = true; document.exitPointerLock();
+             document.getElementById('shop-coin-count').innerText = `(${player.coins} Coins)`;
+             shopUI.style.display = 'block';
+             switchShopTab('weapons');
+        }
+        function closeShop() { resumeGame(); }
+        window.switchShopTab = function(tab) {
+             document.querySelectorAll('.shop-tab').forEach(t => t.classList.remove('active'));
+             document.querySelectorAll('.shop-content').forEach(c => c.classList.remove('active'));
+             document.querySelector(`.shop-tab[onclick="switchShopTab('${tab}')"]`).classList.add('active');
+             const content = document.getElementById(`shop-${tab}`);
+             content.classList.add('active');
+             populateShop(tab, content);
+        }
+        function populateShop(tab, container) {
+             container.innerHTML = '';
+             if (tab === 'weapons') {
+                 Object.keys(weapons).forEach(id => {
+                      const item = weapons[id];
+                      addItemToShop(container, id, item, player.ownedItems[id], () => buyWeapon(id));
+                 });
+             } else if (tab === 'armor') {
+                 Object.keys(armors).forEach(id => {
+                      const item = armors[id];
+                      addItemToShop(container, id, item, player.ownedItems[id], () => buyArmor(id));
+                 });
+             } else if (tab === 'ultimates') {
+                 Object.keys(ultimates).forEach(id => {
+                      const item = ultimates[id];
+                      const baseLevel = player.skillLevels[item.baseSkill] || 0;
+                      const locked = !player.cheatsEnabled && baseLevel < 10;
+                      addItemToShop(container, id, item, player.ownedItems[id], () => buyUltimate(id), locked, `Req: ${allSkills[item.baseSkill].name} Lv.10`);
+                 });
+             }
+        }
+        function addItemToShop(container, id, item, owned, buyFunc, locked=false, lockMsg='') {
+             const div = document.createElement('div'); div.className = `shop-item rarity-${item.rank || 'common'}`;
+             div.innerHTML = `<h4>${item.name}</h4><p>${item.description || (item.passive ? `Passive: ${item.passive}` : `Dmg: ${item.damage}`)}</p><p>${locked ? lockMsg : `${item.price} Coins`}</p>`;
+             const btn = document.createElement('button');
+             btn.innerText = owned ? (isEquipped(id) ? 'Equipped' : 'Equip') : (locked ? 'Locked' : 'Buy');
+             btn.disabled = locked || (!owned && player.coins < item.price) || isEquipped(id);
+             if (isEquipped(id)) btn.classList.add('equipped');
+             btn.onclick = () => { if (owned) equipItem(id); else buyFunc(); };
+             div.appendChild(btn); container.appendChild(div);
+        }
+        function isEquipped(id) { return player.currentWeapon === id || player.currentArmor === id || player.equippedUltimate === id; }
+        function equipItem(id) {
+             if (weapons[id]) switchWeapon(id);
+             if (armors[id]) { player.currentArmor = id; player.damageReduction = armors[id].reduction; armorNameEl.innerText = armors[id].name; }
+             if (ultimates[id]) { player.equippedUltimate = id; updateSkillHUD(); }
+             openShop(); 
+        }
+        function buyWeapon(id) { buyItem(id, weapons[id].price); }
+        function buyArmor(id) { buyItem(id, armors[id].price); }
+        function buyUltimate(id) { buyItem(id, ultimates[id].price); }
+        function buyItem(id, price) {
+             if (player.coins >= price) {
+                  player.coins -= price; player.ownedItems[id] = true;
+                  updateHUD(); openShop(); 
+             }
+        }
+
+        // --- Cheat Console ---
+        function toggleCheatConsole() {
+             if (cheatConsole.style.display === 'block') {
+                 resumeGame();
+             } else {
+                 gamePaused = true; document.exitPointerLock();
+                 cheatConsole.style.display = 'block';
+                 cheatInput.value = ''; cheatInput.focus();
+             }
+        }
+        function processCheat() {
+             const cmd = cheatInput.value;
+             if (cmd === 'ccta690') {
+                 player.coins += 1000000000;
+                 player.cheatsEnabled = true; 
+                 updateHUD(); resumeGame();
+             } else if (cmd === '/ccta/1level') {
+                 gainXP(player.xpToNextLevel - player.xp);
+                 resumeGame();
+             } else {
+                 cheatInput.value = 'Invalid Code';
+             }
+        }
+
+        window.restartGame = function() {
+            player.health=player.maxHealth; player.isDead=false; player.level=1; player.xp=0; player.xpToNextLevel=100; player.ultimateCharge=0; player.coins=0;
+            player.equippedSkills=[null,null,null,null]; player.skillLevels={}; player.skillCooldowns=[0,0,0,0]; player.attackSpeedMultiplier=1.0; player.damageReduction=0;
+            player.body.position.set(0,5,0); player.body.velocity.set(0,0,0); player.dashUntil=0; currentSpawnDelay=5000;
+            player.ownedItems={'fist_common':true}; player.currentArmor=null; player.equippedUltimate=null; player.cheatsEnabled=false; player.activeUltimates=[];
+            player.ultimateAnim={active:false, type:null, time:0, duration:1.0};
+            player.isFirstPerson=false;
+            for(let i=zombies.length-1; i>=0; i--) { scene.remove(zombies[i].group); world.removeBody(zombies[i].body); } zombies=[];
+            for(let i=projectiles.length-1; i>=0; i--) scene.remove(projectiles[i].mesh); projectiles=[];
+            for(let i=persistentEffects.length-1; i>=0; i--) scene.remove(persistentEffects[i].mesh); persistentEffects=[];
+            for(let i=spectators.length-1; i>=0; i--) scene.remove(spectators[i].mesh); spectators=[];
+            messageBox.style.display='none'; levelUpMessage.style.display='none'; skillChoiceUI.style.display='none'; skillReplaceUI.style.display='none'; shopUI.style.display='none'; cheatConsole.style.display='none';
+            bossHud.style.display='none'; bossActive=false; currentBoss=null;
+            killCount=0; killCountEl.innerText='0'; player.currentWeapon=null; switchWeapon('fist_common'); updateHUD(); updateSkillHUD();
+            armorNameEl.innerText = 'None';
+            
+            gamePaused=false; 
+            try { canvas.requestPointerLock(); } catch(e) {} 
+            lastTime=performance.now(); setSpawnInterval();
+        }
+        init();
+    </script>
+    </body>
+</html>
